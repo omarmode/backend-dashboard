@@ -44,7 +44,7 @@ router.post("/verify-code", verifyLimiter, async (req, res) => {
       });
     }
 
-    const record = await ActivationCode.findOne({ code });
+    const record = await ActivationCode.findByCode(code);
     const result = licenseStatus(record, deviceId, mode);
 
     if (!result.success) {
@@ -52,19 +52,23 @@ router.post("/verify-code", verifyLimiter, async (req, res) => {
     }
 
     const now = new Date();
+    const updates = {
+      lastSeenAt: now.toISOString()
+    };
+
     if (mode === "activate") {
-      record.isActivated = true;
-      record.deviceId = deviceId;
+      updates.isActivated = true;
+      updates.deviceId = deviceId;
       if (!record.activatedAt) {
-        record.activatedAt = now;
+        updates.activatedAt = now.toISOString();
       }
     }
-    record.lastSeenAt = now;
-    await record.save();
+
+    const saved = await ActivationCode.updateCode(record.id, updates);
 
     return res.json({
       ...result,
-      expiresAt: record.expiresAt,
+      expiresAt: saved.expiresAt,
       isActivated: true
     });
   } catch (error) {

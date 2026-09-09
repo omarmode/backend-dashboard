@@ -31,14 +31,14 @@ router.post("/login", async (req, res) => {
   try {
     const username = String(req.body.username || "").trim().toLowerCase();
     const password = String(req.body.password || "");
-    const admin = await Admin.findOne({ username });
+    const admin = await Admin.findByUsername(username);
 
     if (!admin || !(await admin.verifyPassword(password))) {
       flash(req, "error", "اسم المستخدم أو كلمة المرور غير صحيحة");
       return res.redirect("/admin/login");
     }
 
-    req.session.adminId = admin._id.toString();
+    req.session.adminId = String(admin.id);
     req.session.adminUsername = admin.username;
     return res.redirect("/admin");
   } catch (error) {
@@ -55,14 +55,13 @@ router.post("/logout", (req, res) => {
 });
 
 router.get("/", requireAdmin, async (req, res) => {
-  const codes = await ActivationCode.find().sort({ createdAt: -1 }).lean();
-  const now = Date.now();
+  const codes = await ActivationCode.listAll();
   const mapped = codes.map((item) => ({
     ...item,
-    expired: new Date(item.expiresAt).getTime() <= now,
-    expiresAtText: new Date(item.expiresAt).toLocaleString("ar-EG"),
-    createdAtText: new Date(item.createdAt).toLocaleString("ar-EG"),
-    lastSeenText: item.lastSeenAt ? new Date(item.lastSeenAt).toLocaleString("ar-EG") : "—"
+    expired: item.isExpired(),
+    expiresAtText: item.expiresAt ? item.expiresAt.toLocaleString("ar-EG") : "—",
+    createdAtText: item.createdAt ? item.createdAt.toLocaleString("ar-EG") : "—",
+    lastSeenText: item.lastSeenAt ? item.lastSeenAt.toLocaleString("ar-EG") : "—"
   }));
 
   res.render("dashboard", {
@@ -87,17 +86,14 @@ router.post("/codes", requireAdmin, async (req, res) => {
     );
 
     let code = generateActivationCode();
-    while (await ActivationCode.exists({ code })) {
+    while (await ActivationCode.existsByCode(code)) {
       code = generateActivationCode();
     }
 
-    await ActivationCode.create({
+    await ActivationCode.createCode({
       code,
-      expiresAt,
-      durationLabel,
-      isActivated: false,
-      deviceId: null,
-      isBlocked: false
+      expiresAt: expiresAt.toISOString(),
+      durationLabel
     });
 
     flash(req, "success", `تم إنشاء الكود ${code}`);
@@ -111,8 +107,7 @@ router.post("/codes", requireAdmin, async (req, res) => {
 router.post("/codes/:id/block", requireAdmin, async (req, res) => {
   const record = await ActivationCode.findById(req.params.id);
   if (record) {
-    record.isBlocked = true;
-    await record.save();
+    await ActivationCode.updateCode(record.id, { isBlocked: true });
     flash(req, "success", `تم حظر الكود ${record.code}`);
   }
   return res.redirect("/admin");
@@ -121,8 +116,7 @@ router.post("/codes/:id/block", requireAdmin, async (req, res) => {
 router.post("/codes/:id/unblock", requireAdmin, async (req, res) => {
   const record = await ActivationCode.findById(req.params.id);
   if (record) {
-    record.isBlocked = false;
-    await record.save();
+    await ActivationCode.updateCode(record.id, { isBlocked: false });
     flash(req, "success", `تم إلغاء حظر الكود ${record.code}`);
   }
   return res.redirect("/admin");
@@ -131,17 +125,18 @@ router.post("/codes/:id/unblock", requireAdmin, async (req, res) => {
 router.post("/codes/:id/force-logout", requireAdmin, async (req, res) => {
   const record = await ActivationCode.findById(req.params.id);
   if (record) {
-    record.deviceId = null;
-    record.isActivated = false;
-    record.activatedAt = null;
-    await record.save();
+    await ActivationCode.updateCode(record.id, {
+      deviceId: null,
+      isActivated: false,
+      activatedAt: null
+    });
     flash(req, "success", `تم طرد الجهاز المرتبط بالكود ${record.code}`);
   }
   return res.redirect("/admin");
 });
 
 router.post("/codes/:id/delete", requireAdmin, async (req, res) => {
-  await ActivationCode.findByIdAndDelete(req.params.id);
+  await ActivationCode.deleteById(req.params.id);
   flash(req, "success", "تم حذف الكود");
   return res.redirect("/admin");
 });

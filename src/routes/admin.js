@@ -61,7 +61,8 @@ router.get("/", requireAdmin, async (req, res) => {
     expired: item.isExpired(),
     expiresAtText: item.expiresAt ? item.expiresAt.toLocaleString("ar-EG") : "—",
     createdAtText: item.createdAt ? item.createdAt.toLocaleString("ar-EG") : "—",
-    lastSeenText: item.lastSeenAt ? item.lastSeenAt.toLocaleString("ar-EG") : "—"
+    lastSeenText: item.lastSeenAt ? item.lastSeenAt.toLocaleString("ar-EG") : "—",
+    clientNameText: item.clientName ? item.clientName : "—"
   }));
 
   res.render("dashboard", {
@@ -93,7 +94,8 @@ router.post("/codes", requireAdmin, async (req, res) => {
     await ActivationCode.createCode({
       code,
       expiresAt: expiresAt.toISOString(),
-      durationLabel
+      durationLabel,
+      clientName: String(req.body.client_name || "").trim()
     });
 
     flash(req, "success", `تم إنشاء الكود ${code}`);

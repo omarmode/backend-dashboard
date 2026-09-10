@@ -20,7 +20,8 @@ create table if not exists public.activation_codes (
   created_at timestamp with time zone not null default now(),
   duration_label text not null default '',
   activated_at timestamp with time zone,
-  last_seen_at timestamp with time zone
+  last_seen_at timestamp with time zone,
+  client_name varchar(255) not null default ''
 );
 
 create index if not exists activation_codes_code_idx
@@ -53,3 +54,6 @@ create policy activation_codes_server_access
 
 grant select, insert, update, delete on table public.admin to anon, authenticated;
 grant select, insert, update, delete on table public.activation_codes to anon, authenticated;
+
+alter table public.activation_codes
+  add column if not exists client_name varchar(255) default '';

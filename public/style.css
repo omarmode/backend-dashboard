@@ -49,7 +49,8 @@ h2 { margin-bottom: 14px; }
 .eyebrow { color: var(--purple); font-weight: 700; margin-bottom: 6px; }
 .muted { color: var(--muted); }
 .stack, .create-form { display: grid; gap: 12px; }
-.create-form { grid-template-columns: 1fr 1fr auto; align-items: end; }
+.create-form { grid-template-columns: 1.6fr 0.8fr 0.8fr auto; align-items: end; }
+.client-name-field { min-width: 0; }
 
 label { display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
 input, select, button {

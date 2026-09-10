@@ -17,6 +17,7 @@ function mapCode(row) {
     expiresAt,
     createdAt: row.created_at ? new Date(row.created_at) : null,
     durationLabel: row.duration_label || "",
+    clientName: String(row.client_name || "").trim(),
     activatedAt: row.activated_at ? new Date(row.activated_at) : null,
     lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at) : null,
     isExpired(now = new Date()) {
@@ -76,6 +77,7 @@ async function createCode(fields) {
       code: String(fields.code || "").trim().toUpperCase(),
       expires_at: fields.expiresAt,
       duration_label: fields.durationLabel || "",
+      client_name: String(fields.clientName || "").trim(),
       is_active: false,
       is_blocked: false,
       device_id: null,

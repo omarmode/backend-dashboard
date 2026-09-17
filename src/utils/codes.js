@@ -21,12 +21,27 @@ function computeExpiry(durationValue, durationUnit) {
   return { expiresAt, durationLabel: `${value} يوم` };
 }
 
-function licenseStatus(record, deviceId, mode = "activate") {
+function licenseStatus(record, deviceId, mode = "activate", appId = "FARZ_V1") {
   if (!record) {
     return {
       success: false,
       status: "invalid",
       message: "كود التفعيل غير صحيح",
+      expiresAt: null,
+      isActivated: false
+    };
+  }
+
+  const recordAppId = String(record.appId || "FARZ_V1").trim().toUpperCase();
+  const incomingAppId = String(appId || "FARZ_V1").trim().toUpperCase();
+  if (recordAppId !== incomingAppId) {
+    const isApp1Code = recordAppId === "FARZ_V1";
+    return {
+      success: false,
+      status: "app_mismatch",
+      message: isApp1Code
+        ? "هذا الكود مخصص للتطبيق الأول (FARZ 1) ولا يمكن استخدامه على التطبيق الثاني"
+        : "هذا الكود مخصص للتطبيق الثاني (FARZ 2) ولا يمكن استخدامه على التطبيق الأول",
       expiresAt: null,
       isActivated: false
     };

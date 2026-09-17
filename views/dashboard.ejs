@@ -9,8 +9,8 @@
 <body>
   <header class="topbar">
     <div>
-      <p class="eyebrow">FARZ Admin</p>
-      <h1>إدارة أكواد التفعيل</h1>
+      <p class="eyebrow">FARZ Admin Control Center</p>
+      <h1>إدارة أكواد التفعيل والتراخيص</h1>
     </div>
     <form method="post" action="/admin/logout">
       <span class="muted">مرحباً، <%= adminUsername %></span>
@@ -25,100 +25,264 @@
       </div>
     <% } %>
 
-    <section class="stats">
-      <article><strong><%= stats.total %></strong><span>إجمالي الأكواد</span></article>
-      <article><strong><%= stats.active %></strong><span>سارية ومفعلة</span></article>
-      <article><strong><%= stats.blocked %></strong><span>محظورة</span></article>
-      <article><strong><%= stats.expired %></strong><span>منتهية</span></article>
-    </section>
+    <!-- App Switcher Tabs -->
+    <nav class="app-tabs-nav" aria-label="تبويبات التطبيقات">
+      <a href="/admin?tab=FARZ_V1" 
+         class="app-tab <%= activeTab === 'FARZ_V1' ? 'active' : '' %>" 
+         data-target="tab-panel-v1" 
+         id="tab-btn-v1">
+        <span class="tab-icon">📱</span>
+        <div class="tab-text">
+          <span class="tab-title">التطبيق الأول (FARZ 1)</span>
+          <span class="tab-subtitle">تطبيق لوحات المركبات</span>
+        </div>
+        <span class="tab-badge"><%= codesV1.length %></span>
+      </a>
 
-    <section class="card">
-      <h2>إنشاء كود تفعيل جديد</h2>
-      <form method="post" action="/admin/codes" class="create-form">
-        <label class="client-name-field">
-          اسم العميل / المالك (اختياري)
-          <input type="text" name="client_name" maxlength="255" placeholder="مثال: شركة النور" />
-        </label>
-        <label>
-          المدة
-          <input type="number" name="durationValue" min="1" value="30" required />
-        </label>
-        <label>
-          الوحدة
-          <select name="durationUnit">
-            <option value="days">أيام</option>
-            <option value="months">شهور</option>
-          </select>
-        </label>
-        <button type="submit">إنشاء كود</button>
-      </form>
-    </section>
+      <a href="/admin?tab=FARZ_V2" 
+         class="app-tab <%= activeTab === 'FARZ_V2' ? 'active' : '' %>" 
+         data-target="tab-panel-v2" 
+         id="tab-btn-v2">
+        <span class="tab-icon">🚗</span>
+        <div class="tab-text">
+          <span class="tab-title">التطبيق الثاني (FARZ 2)</span>
+          <span class="tab-subtitle">تطبيق فرز V2 المطور</span>
+        </div>
+        <span class="tab-badge tab-badge-purple"><%= codesV2.length %></span>
+      </a>
+    </nav>
 
-    <section class="card">
-      <h2>قائمة الأكواد والأجهزة</h2>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>الكود</th>
-              <th>صاحب الكود / العميل</th>
-              <th>الصلاحية</th>
-              <th>الحالة</th>
-              <th>معرف الجهاز</th>
-              <th>آخر ظهور</th>
-              <th>إجراءات</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% if (!codes.length) { %>
+    <!-- PANEL 1: FARZ 1 -->
+    <div id="tab-panel-v1" class="tab-panel <%= activeTab === 'FARZ_V1' ? 'active' : '' %>">
+      <section class="panel-header">
+        <div class="panel-tag tag-blue">📱 التطبيق الأول (FARZ 1)</div>
+        <p class="panel-desc">إدارة أكواد وترخيصات التطبيق الأول فقط. لا يمكن استخدام هذه الأكواد على التطبيق الثاني.</p>
+      </section>
+
+      <section class="stats">
+        <article><strong><%= statsV1.total %></strong><span>إجمالي الأكواد</span></article>
+        <article><strong><%= statsV1.active %></strong><span>سارية ومفعلة</span></article>
+        <article><strong><%= statsV1.blocked %></strong><span>محظورة</span></article>
+        <article><strong><%= statsV1.expired %></strong><span>منتهية</span></article>
+      </section>
+
+      <section class="card">
+        <h2>إنشاء كود تفعيل جديد — التطبيق الأول (FARZ 1)</h2>
+        <form method="post" action="/admin/codes" class="create-form">
+          <input type="hidden" name="app_id" value="FARZ_V1" />
+          <label class="client-name-field">
+            اسم العميل / المالك (اختياري)
+            <input type="text" name="client_name" maxlength="255" placeholder="مثال: شركة الأمل - فرع 1" />
+          </label>
+          <label>
+            المدة
+            <input type="number" name="durationValue" min="1" value="30" required />
+          </label>
+          <label>
+            الوحدة
+            <select name="durationUnit">
+              <option value="days">أيام</option>
+              <option value="months">شهور</option>
+            </select>
+          </label>
+          <button type="submit">إنشاء كود FARZ 1</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>قائمة أكواد التطبيق الأول والأجهزة المرتبطة</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
               <tr>
-                <td colspan="7" class="muted">لا توجد أكواد بعد. أنشئ كوداً من النموذج أعلاه.</td>
+                <th>الكود</th>
+                <th>صاحب الكود / العميل</th>
+                <th>الصلاحية</th>
+                <th>الحالة</th>
+                <th>معرف الجهاز</th>
+                <th>آخر ظهور</th>
+                <th>إجراءات</th>
               </tr>
-            <% } %>
-            <% codes.forEach((item) => { %>
+            </thead>
+            <tbody>
+              <% if (!codesV1.length) { %>
+                <tr>
+                  <td colspan="7" class="muted">لا توجد أكواد للتطبيق الأول بعد. أنشئ كوداً من النموذج أعلاه.</td>
+                </tr>
+              <% } %>
+              <% codesV1.forEach((item) => { %>
+                <tr>
+                  <td><code><%= item.code %></code></td>
+                  <td><%= item.clientNameText %></td>
+                  <td>
+                    <%= item.expiresAtText %>
+                    <div class="muted"><%= item.durationLabel || '' %></div>
+                  </td>
+                  <td>
+                    <% if (item.isBlocked) { %>
+                      <span class="badge badge-red">محظور</span>
+                    <% } else if (item.expired) { %>
+                      <span class="badge badge-amber">منتهي</span>
+                    <% } else if (item.isActivated) { %>
+                      <span class="badge badge-green">مفعل</span>
+                    <% } else { %>
+                      <span class="badge">غير مستخدم</span>
+                    <% } %>
+                  </td>
+                  <td><%= item.deviceId || '—' %></td>
+                  <td><%= item.lastSeenText %></td>
+                  <td class="actions">
+                    <% if (item.isBlocked) { %>
+                      <form method="post" action="/admin/codes/<%= item._id %>/unblock">
+                        <button type="submit" class="ghost">إلغاء الحظر</button>
+                      </form>
+                    <% } else { %>
+                      <form method="post" action="/admin/codes/<%= item._id %>/block">
+                        <button type="submit" class="danger">حظر / تعطيل</button>
+                      </form>
+                    <% } %>
+                    <form method="post" action="/admin/codes/<%= item._id %>/force-logout">
+                      <button type="submit">طرد الجهاز</button>
+                    </form>
+                    <form method="post" action="/admin/codes/<%= item._id %>/delete" onsubmit="return confirm('هل أنت متأكد من حذف هذا الكود نهائياً؟');">
+                      <button type="submit" class="ghost">حذف</button>
+                    </form>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- PANEL 2: FARZ 2 -->
+    <div id="tab-panel-v2" class="tab-panel <%= activeTab === 'FARZ_V2' ? 'active' : '' %>">
+      <section class="panel-header">
+        <div class="panel-tag tag-purple">🚗 التطبيق الثاني (FARZ 2)</div>
+        <p class="panel-desc">إدارة أكواد وترخيصات التطبيق الثاني المطور. لا يمكن استخدام هذه الأكواد على التطبيق الأول.</p>
+      </section>
+
+      <section class="stats">
+        <article><strong><%= statsV2.total %></strong><span>إجمالي الأكواد</span></article>
+        <article><strong><%= statsV2.active %></strong><span>سارية ومفعلة</span></article>
+        <article><strong><%= statsV2.blocked %></strong><span>محظورة</span></article>
+        <article><strong><%= statsV2.expired %></strong><span>منتهية</span></article>
+      </section>
+
+      <section class="card">
+        <h2>إنشاء كود تفعيل جديد — التطبيق الثاني (FARZ 2)</h2>
+        <form method="post" action="/admin/codes" class="create-form">
+          <input type="hidden" name="app_id" value="FARZ_V2" />
+          <label class="client-name-field">
+            اسم العميل / المالك (اختياري)
+            <input type="text" name="client_name" maxlength="255" placeholder="مثال: مؤسسة التقنية - V2" />
+          </label>
+          <label>
+            المدة
+            <input type="number" name="durationValue" min="1" value="30" required />
+          </label>
+          <label>
+            الوحدة
+            <select name="durationUnit">
+              <option value="days">أيام</option>
+              <option value="months">شهور</option>
+            </select>
+          </label>
+          <button type="submit" class="btn-purple">إنشاء كود FARZ 2</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>قائمة أكواد التطبيق الثاني والأجهزة المرتبطة</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
               <tr>
-                <td><code><%= item.code %></code></td>
-                <td><%= item.clientNameText %></td>
-                <td>
-                  <%= item.expiresAtText %>
-                  <div class="muted"><%= item.durationLabel || '' %></div>
-                </td>
-                <td>
-                  <% if (item.isBlocked) { %>
-                    <span class="badge badge-red">محظور</span>
-                  <% } else if (item.expired) { %>
-                    <span class="badge badge-amber">منتهي</span>
-                  <% } else if (item.isActivated) { %>
-                    <span class="badge badge-green">مفعل</span>
-                  <% } else { %>
-                    <span class="badge">غير مستخدم</span>
-                  <% } %>
-                </td>
-                <td><%= item.deviceId || '—' %></td>
-                <td><%= item.lastSeenText %></td>
-                <td class="actions">
-                  <% if (item.isBlocked) { %>
-                    <form method="post" action="/admin/codes/<%= item._id %>/unblock">
-                      <button type="submit" class="ghost">إلغاء الحظر</button>
-                    </form>
-                  <% } else { %>
-                    <form method="post" action="/admin/codes/<%= item._id %>/block">
-                      <button type="submit" class="danger">حظر / تعطيل</button>
-                    </form>
-                  <% } %>
-                  <form method="post" action="/admin/codes/<%= item._id %>/force-logout">
-                    <button type="submit">طرد الجهاز</button>
-                  </form>
-                  <form method="post" action="/admin/codes/<%= item._id %>/delete" onsubmit="return confirm('حذف هذا الكود؟');">
-                    <button type="submit" class="ghost">حذف</button>
-                  </form>
-                </td>
+                <th>الكود</th>
+                <th>صاحب الكود / العميل</th>
+                <th>الصلاحية</th>
+                <th>الحالة</th>
+                <th>معرف الجهاز</th>
+                <th>آخر ظهور</th>
+                <th>إجراءات</th>
               </tr>
-            <% }) %>
-          </tbody>
-        </table>
-      </div>
-    </section>
+            </thead>
+            <tbody>
+              <% if (!codesV2.length) { %>
+                <tr>
+                  <td colspan="7" class="muted">لا توجد أكواد للتطبيق الثاني بعد. أنشئ كوداً من النموذج أعلاه.</td>
+                </tr>
+              <% } %>
+              <% codesV2.forEach((item) => { %>
+                <tr>
+                  <td><code><%= item.code %></code></td>
+                  <td><%= item.clientNameText %></td>
+                  <td>
+                    <%= item.expiresAtText %>
+                    <div class="muted"><%= item.durationLabel || '' %></div>
+                  </td>
+                  <td>
+                    <% if (item.isBlocked) { %>
+                      <span class="badge badge-red">محظور</span>
+                    <% } else if (item.expired) { %>
+                      <span class="badge badge-amber">منتهي</span>
+                    <% } else if (item.isActivated) { %>
+                      <span class="badge badge-green">مفعل</span>
+                    <% } else { %>
+                      <span class="badge">غير مستخدم</span>
+                    <% } %>
+                  </td>
+                  <td><%= item.deviceId || '—' %></td>
+                  <td><%= item.lastSeenText %></td>
+                  <td class="actions">
+                    <% if (item.isBlocked) { %>
+                      <form method="post" action="/admin/codes/<%= item._id %>/unblock">
+                        <button type="submit" class="ghost">إلغاء الحظر</button>
+                      </form>
+                    <% } else { %>
+                      <form method="post" action="/admin/codes/<%= item._id %>/block">
+                        <button type="submit" class="danger">حظر / تعطيل</button>
+                      </form>
+                    <% } %>
+                    <form method="post" action="/admin/codes/<%= item._id %>/force-logout">
+                      <button type="submit">طرد الجهاز</button>
+                    </form>
+                    <form method="post" action="/admin/codes/<%= item._id %>/delete" onsubmit="return confirm('هل أنت متأكد من حذف هذا الكود نهائياً؟');">
+                      <button type="submit" class="ghost">حذف</button>
+                    </form>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   </main>
+
+  <script>
+    // Seamless instant tab switching with URL update
+    document.querySelectorAll('.app-tab').forEach(function(tabLink) {
+      tabLink.addEventListener('click', function(e) {
+        e.preventDefault();
+        var targetPanelId = tabLink.getAttribute('data-target');
+        var newTabId = targetPanelId === 'tab-panel-v2' ? 'FARZ_V2' : 'FARZ_V1';
+
+        document.querySelectorAll('.app-tab').forEach(function(t) { t.classList.remove('active'); });
+        document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+
+        tabLink.classList.add('active');
+        var targetPanel = document.getElementById(targetPanelId);
+        if (targetPanel) {
+          targetPanel.classList.add('active');
+        }
+
+        var url = new URL(window.location);
+        url.searchParams.set('tab', newTabId);
+        window.history.replaceState({}, '', url);
+      });
+    });
+  </script>
 </body>
 </html>

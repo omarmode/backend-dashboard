@@ -18,6 +18,7 @@ function mapCode(row) {
     createdAt: row.created_at ? new Date(row.created_at) : null,
     durationLabel: row.duration_label || "",
     clientName: String(row.client_name || "").trim(),
+    appId: String(row.app_id || "FARZ_V1").trim().toUpperCase(),
     activatedAt: row.activated_at ? new Date(row.activated_at) : null,
     lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at) : null,
     isExpired(now = new Date()) {
@@ -58,12 +59,18 @@ async function existsByCode(code) {
   return Boolean(record);
 }
 
-async function listAll() {
+async function listAll(appId = null) {
   const supabase = getSupabase();
-  const { data, error } = await supabase
+  let query = supabase
     .from("activation_codes")
     .select("*")
     .order("created_at", { ascending: false });
+
+  if (appId) {
+    query = query.eq("app_id", appId);
+  }
+
+  const { data, error } = await query;
 
   await throwIfError(error, "تعذر تحميل قائمة الأكواد");
   return (data || []).map(mapCode);
@@ -78,6 +85,7 @@ async function createCode(fields) {
       expires_at: fields.expiresAt,
       duration_label: fields.durationLabel || "",
       client_name: String(fields.clientName || "").trim(),
+      app_id: String(fields.appId || "FARZ_V1").trim().toUpperCase(),
       is_active: false,
       is_blocked: false,
       device_id: null,

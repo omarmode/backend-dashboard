@@ -33,6 +33,7 @@ router.post("/verify-code", verifyLimiter, async (req, res) => {
     const code = normalizeCode(req.body?.code);
     const deviceId = String(req.body?.deviceId || "").trim();
     const mode = req.body?.mode === "heartbeat" ? "heartbeat" : "activate";
+    const appId = String(req.body?.app_id || req.body?.appId || "FARZ_V1").trim().toUpperCase();
 
     if (!code || !deviceId) {
       return res.status(400).json({
@@ -45,7 +46,7 @@ router.post("/verify-code", verifyLimiter, async (req, res) => {
     }
 
     const record = await ActivationCode.findByCode(code);
-    const result = licenseStatus(record, deviceId, mode);
+    const result = licenseStatus(record, deviceId, mode, appId);
 
     if (!result.success) {
       return res.status(200).json(result);

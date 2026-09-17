@@ -21,7 +21,8 @@ create table if not exists public.activation_codes (
   duration_label text not null default '',
   activated_at timestamp with time zone,
   last_seen_at timestamp with time zone,
-  client_name varchar(255) not null default ''
+  client_name varchar(255) not null default '',
+  app_id varchar(50) not null default 'FARZ_V1'
 );
 
 create index if not exists activation_codes_code_idx
@@ -32,6 +33,9 @@ create index if not exists activation_codes_device_id_idx
 
 create index if not exists activation_codes_expires_at_idx
   on public.activation_codes (expires_at);
+
+create index if not exists activation_codes_app_id_idx
+  on public.activation_codes (app_id);
 
 alter table public.admin enable row level security;
 alter table public.activation_codes enable row level security;
@@ -57,3 +61,10 @@ grant select, insert, update, delete on table public.activation_codes to anon, a
 
 alter table public.activation_codes
   add column if not exists client_name varchar(255) default '';
+
+alter table public.activation_codes
+  add column if not exists app_id varchar(50) default 'FARZ_V1';
+
+update public.activation_codes
+  set app_id = 'FARZ_V1'
+  where app_id is null or app_id = '';

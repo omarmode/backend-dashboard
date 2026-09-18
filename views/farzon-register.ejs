@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تسجيل وتفعيل أجهزة تطبيق Farzon</title>
+  <link rel="stylesheet" href="/public/style.css" />
+</head>
+<body>
+  <div class="reg-wrapper">
+    <main class="reg-card">
+      <div class="reg-header">
+        <div class="reg-icon">🚗</div>
+        <h1 class="reg-title">تفعيل حساب وجهاز Farzon</h1>
+        <p class="reg-subtitle">منصة التسجيل وتفعيل كود النشاط المعتمد لتطبيق فرزون (Farzon)</p>
+      </div>
+
+      <% if (alert) { %>
+        <div class="alert <%= alert.type === 'success' ? 'alert-success' : 'alert-error' %>" style="margin-bottom: 20px;">
+          <%= alert.message %>
+        </div>
+      <% } %>
+
+      <% if (successData) { %>
+        <div class="reg-box-success">
+          <h3>✅ تم تفعيل وتسجيل الجهاز بنجاح!</h3>
+          <p><strong>كود النشاط المفعّل:</strong> <code><%= successData.code %></code></p>
+          <p><strong>معرف الجهاز المسجّل:</strong> <code><%= successData.deviceId %></code></p>
+          <% if (successData.clientName) { %>
+            <p><strong>المالك / المنشأة:</strong> <%= successData.clientName %></p>
+          <% } %>
+          <p><strong>صلاحية الترخيص:</strong> <%= successData.expiresAtText || 'ساري' %></p>
+          <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(52, 211, 153, 0.3); font-size: 13px; color: #a7f3d0;">
+            🎉 يمكنك الآن فتح تطبيق Farzon على جهازك والدخول مباشرة للعمل.
+          </div>
+        </div>
+
+        <div style="margin-top: 20px; text-align: center;">
+          <a href="/farzon/register" class="ghost" style="display:inline-block; padding: 10px 20px; color: #ecfdf5; text-decoration: none; border: 1px solid var(--line); border-radius: 12px;">تسجيل جهاز آخر</a>
+        </div>
+      <% } else { %>
+        <form method="post" action="/farzon/register" class="stack" id="regForm">
+          <label>
+            كود النشاط / التفعيل (يبدأ بـ FARZON-)
+            <input 
+              type="text" 
+              name="code" 
+              id="codeInput"
+              placeholder="FARZON-XXXX-XXXX" 
+              value="<%= initialCode || '' %>" 
+              required 
+              style="text-transform: uppercase; font-family: monospace; font-size: 16px; letter-spacing: 1px;"
+            />
+          </label>
+
+          <label>
+            معرف الجهاز (Device ID)
+            <input 
+              type="text" 
+              name="deviceId" 
+              id="deviceIdInput" 
+              placeholder="مثال: a1b2c3d4-e5f6-7890..." 
+              value="<%= initialDeviceId || '' %>" 
+              required 
+            />
+            <span class="device-id-tip">
+              💡 تجد معرف الجهاز مكتوباً في شاشة تفعيل تطبيق Farzon بهاتفك، أو اضغط الزر أدناه لتعبئته تلقائياً إن كنت تتصفح من نفس الهاتف.
+            </span>
+          </label>
+
+          <div style="display: flex; gap: 8px;">
+            <button type="button" id="autoDetectBtn" class="ghost" style="font-size: 13px; padding: 8px 12px; width: 100%;">
+              📲 استخدام معرّف هذا المتصفح تلقائياً
+            </button>
+          </div>
+
+          <label>
+            اسم العميل / اسم المنشأة (اختياري)
+            <input 
+              type="text" 
+              name="clientName" 
+              placeholder="مثال: مؤسسة النور للتجارة" 
+              value="<%= initialClientName || '' %>" 
+            />
+          </label>
+
+          <button type="submit" class="btn-green" style="margin-top: 10px; padding: 14px; font-size: 16px;">
+            🚀 تسجيل وتفعيل الجهاز الآن
+          </button>
+        </form>
+      <% } %>
+
+      <div style="margin-top: 24px; text-align: center; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 16px;">
+        <span style="font-size: 12px; color: var(--muted);">Farzon Licensing & Activity Center &bull; تطبيق فرزون 2026</span>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Auto device id generation / local storage persistence if needed
+    var autoBtn = document.getElementById('autoDetectBtn');
+    var deviceInput = document.getElementById('deviceIdInput');
+    if (autoBtn && deviceInput) {
+      autoBtn.addEventListener('click', function() {
+        var saved = localStorage.getItem('farzon_device_id');
+        if (!saved) {
+          saved = 'WEB-' + Math.random().toString(36).substring(2, 10).toUpperCase() + '-' + Date.now().toString(36).toUpperCase();
+          localStorage.setItem('farzon_device_id', saved);
+        }
+        deviceInput.value = saved;
+      });
+      // prefill if stored and field is empty
+      if (!deviceInput.value && localStorage.getItem('farzon_device_id')) {
+        deviceInput.value = localStorage.getItem('farzon_device_id');
+      }
+    }
+
+    var codeInput = document.getElementById('codeInput');
+    if (codeInput) {
+      codeInput.addEventListener('input', function(e) {
+        e.target.value = e.target.value.toUpperCase();
+      });
+    }
+  </script>
+</body>
+</html>

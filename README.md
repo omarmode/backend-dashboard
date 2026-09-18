@@ -96,35 +96,62 @@ LICENSE_API_BASE_URL=https://your-service.onrender.com/
 
 ---
 
+## التطبيقات المدعومة في لوحة التحكم
+
+1. **تطبيق فرز (Farz) — التاب 1:**
+   - تطبيق فرز الأساسي للوحات المركبات.
+   - بادئة الكود: `FARZ-XXXX-XXXX`.
+   - لون التاب: أزرق.
+
+2. **تطبيق فرزون (Farzon) — التاب 2:**
+   - تطبيق فرزون المتطور.
+   - بادئة الكود المعتمدة: `FARZON-XXXX-XXXX`.
+   - لون التاب: أخضر هادئ (Pastel Green).
+   - صفحة التسجيل والتفعيل عبر الويب: `/farzon/register`.
+
+---
+
 ## مسارات الـ API
 
-### `POST /api/verify-code`
+### 1) `POST /api/verify-code` (التحقق العام والتفعيل)
 
 ```json
 {
-  "code": "FARZ-XXXX-XXXX",
+  "code": "FARZON-XXXX-XXXX",
   "deviceId": "android-id",
-  "mode": "activate"
+  "mode": "activate",
+  "app_id": "FARZON"
 }
 ```
 
 `mode` يكون `activate` عند إدخال الكود، و `heartbeat` عند الفحص الدوري.
 
-حالات `status`:
-- `valid`
-- `invalid`
-- `expired`
-- `blocked`
-- `device_mismatch`
-- `logged_out`
+### 2) `POST /api/farzon/register` (تسجيل وتفعيل أجهزة Farzon)
+
+```json
+{
+  "code": "FARZON-XXXX-XXXX",
+  "deviceId": "device-uuid",
+  "clientName": "اسم العميل"
+}
+```
+
+### 3) `POST /api/farzon/activity` (تسجيل نبض ونشاط Farzon)
+
+```json
+{
+  "code": "FARZON-XXXX-XXXX",
+  "deviceId": "device-uuid"
+}
+```
 
 ---
 
 ## لوحة التحكم
 
 بعد تسجيل الدخول يمكنك:
-- إنشاء أكواد جديدة بالمدة (أيام أو شهور)
-- عرض الأكواد و Device ID المرتبط
-- حظر / تعطيل الكود
-- طرد الجهاز (Force Logout)
-- حذف الكود
+- التبديل بين تبويب **تطبيق فرز (Farz)** وتبويب **Farzon**.
+- إنشاء أكواد جديدة مخصصة لكل تطبيق تبدأ بالبادئة الصحيحة تلقائياً.
+- متابعة وتفعيل وحظر وطرد الأجهزة المرتبطة لكل تطبيق بشكل مستقل.
+- الوصول لصفحة تفعيل وتسجيل أجهزة Farzon مباشرة.
+

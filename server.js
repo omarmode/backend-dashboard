@@ -10,6 +10,7 @@ const { connectDatabase } = require("./src/config/db");
 const Admin = require("./src/models/Admin");
 const apiRoutes = require("./src/routes/api");
 const adminRoutes = require("./src/routes/admin");
+const farzonRoutes = require("./src/routes/farzon");
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -75,6 +76,7 @@ async function start() {
   app.get("/", (_req, res) => res.redirect("/admin"));
   app.use("/api", apiRoutes);
   app.use("/admin", adminRoutes);
+  app.use("/farzon", farzonRoutes);
 
   app.use((req, res) => {
     if (req.path.startsWith("/api")) {

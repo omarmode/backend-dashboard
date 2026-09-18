@@ -2,7 +2,7 @@ const express = require("express");
 const Admin = require("../models/Admin");
 const ActivationCode = require("../models/ActivationCode");
 const { requireAdmin } = require("../middleware/auth");
-const { generateActivationCode, computeExpiry } = require("../utils/codes");
+const { generateActivationCode, computeExpiry, isFarzonApp } = require("../utils/codes");
 
 const router = express.Router();
 
@@ -55,7 +55,7 @@ router.post("/logout", (req, res) => {
 });
 
 router.get("/", requireAdmin, async (req, res) => {
-  const activeTab = req.query.tab === "FARZ_V2" ? "FARZ_V2" : "FARZ_V1";
+  const activeTab = (req.query.tab === "FARZ_V2" || req.query.tab === "FARZON") ? "FARZ_V2" : "FARZ_V1";
   const codes = await ActivationCode.listAll();
   const mapped = codes.map((item) => ({
     ...item,
@@ -67,8 +67,8 @@ router.get("/", requireAdmin, async (req, res) => {
     clientNameText: item.clientName ? item.clientName : "—"
   }));
 
-  const codesV1 = mapped.filter((item) => item.appId === "FARZ_V1");
-  const codesV2 = mapped.filter((item) => item.appId === "FARZ_V2");
+  const codesV1 = mapped.filter((item) => !isFarzonApp(item.appId));
+  const codesV2 = mapped.filter((item) => isFarzonApp(item.appId));
 
   function calcStats(list) {
     return {
@@ -97,16 +97,17 @@ router.get("/", requireAdmin, async (req, res) => {
 });
 
 router.post("/codes", requireAdmin, async (req, res) => {
-  const appId = req.body.app_id === "FARZ_V2" ? "FARZ_V2" : "FARZ_V1";
+  const isFarzon = isFarzonApp(req.body.app_id);
+  const appId = isFarzon ? "FARZ_V2" : "FARZ_V1";
   try {
     const { expiresAt, durationLabel } = computeExpiry(
       req.body.durationValue,
       req.body.durationUnit
     );
 
-    let code = generateActivationCode();
+    let code = generateActivationCode(appId);
     while (await ActivationCode.existsByCode(code)) {
-      code = generateActivationCode();
+      code = generateActivationCode(appId);
     }
 
     await ActivationCode.createCode({
@@ -117,7 +118,7 @@ router.post("/codes", requireAdmin, async (req, res) => {
       appId
     });
 
-    const appLabel = appId === "FARZ_V2" ? "التطبيق الثاني (FARZ 2)" : "التطبيق الأول (FARZ 1)";
+    const appLabel = isFarzon ? "تطبيق فرزون (Farzon)" : "تطبيق فرز (Farz)";
     flash(req, "success", `تم إنشاء الكود ${code} الخاص بـ ${appLabel}`);
   } catch (error) {
     console.error("Create code failed:", error);
@@ -128,7 +129,7 @@ router.post("/codes", requireAdmin, async (req, res) => {
 
 router.post("/codes/:id/block", requireAdmin, async (req, res) => {
   const record = await ActivationCode.findById(req.params.id);
-  const tab = record?.appId === "FARZ_V2" ? "FARZ_V2" : "FARZ_V1";
+  const tab = isFarzonApp(record?.appId) ? "FARZ_V2" : "FARZ_V1";
   if (record) {
     await ActivationCode.updateCode(record.id, { isBlocked: true });
     flash(req, "success", `تم حظر الكود ${record.code}`);
@@ -138,7 +139,7 @@ router.post("/codes/:id/block", requireAdmin, async (req, res) => {
 
 router.post("/codes/:id/unblock", requireAdmin, async (req, res) => {
   const record = await ActivationCode.findById(req.params.id);
-  const tab = record?.appId === "FARZ_V2" ? "FARZ_V2" : "FARZ_V1";
+  const tab = isFarzonApp(record?.appId) ? "FARZ_V2" : "FARZ_V1";
   if (record) {
     await ActivationCode.updateCode(record.id, { isBlocked: false });
     flash(req, "success", `تم إلغاء حظر الكود ${record.code}`);
@@ -148,7 +149,7 @@ router.post("/codes/:id/unblock", requireAdmin, async (req, res) => {
 
 router.post("/codes/:id/force-logout", requireAdmin, async (req, res) => {
   const record = await ActivationCode.findById(req.params.id);
-  const tab = record?.appId === "FARZ_V2" ? "FARZ_V2" : "FARZ_V1";
+  const tab = isFarzonApp(record?.appId) ? "FARZ_V2" : "FARZ_V1";
   if (record) {
     await ActivationCode.updateCode(record.id, {
       deviceId: null,
@@ -162,7 +163,7 @@ router.post("/codes/:id/force-logout", requireAdmin, async (req, res) => {
 
 router.post("/codes/:id/delete", requireAdmin, async (req, res) => {
   const record = await ActivationCode.findById(req.params.id);
-  const tab = record?.appId === "FARZ_V2" ? "FARZ_V2" : "FARZ_V1";
+  const tab = isFarzonApp(record?.appId) ? "FARZ_V2" : "FARZ_V1";
   await ActivationCode.deleteById(req.params.id);
   flash(req, "success", "تم حذف الكود");
   return res.redirect(`/admin?tab=${tab}`);

@@ -1,8 +1,15 @@
 const crypto = require("crypto");
 
-function generateActivationCode() {
+function isFarzonApp(appId) {
+  const normalized = String(appId || "").trim().toUpperCase();
+  return normalized === "FARZ_V2" || normalized === "FARZON";
+}
+
+function generateActivationCode(appId = "FARZ_V1") {
+  const isFarzon = isFarzonApp(appId);
+  const prefix = isFarzon ? "FARZON" : "FARZ";
   const chunk = crypto.randomBytes(4).toString("hex").toUpperCase();
-  return `FARZ-${chunk.slice(0, 4)}-${chunk.slice(4, 8)}`;
+  return `${prefix}-${chunk.slice(0, 4)}-${chunk.slice(4, 8)}`;
 }
 
 function computeExpiry(durationValue, durationUnit) {
@@ -32,16 +39,15 @@ function licenseStatus(record, deviceId, mode = "activate", appId = "FARZ_V1") {
     };
   }
 
-  const recordAppId = String(record.appId || "FARZ_V1").trim().toUpperCase();
-  const incomingAppId = String(appId || "FARZ_V1").trim().toUpperCase();
-  if (recordAppId !== incomingAppId) {
-    const isApp1Code = recordAppId === "FARZ_V1";
+  const recordIsFarzon = isFarzonApp(record.appId);
+  const incomingIsFarzon = isFarzonApp(appId);
+  if (recordIsFarzon !== incomingIsFarzon) {
     return {
       success: false,
       status: "app_mismatch",
-      message: isApp1Code
-        ? "هذا الكود مخصص للتطبيق الأول (FARZ 1) ولا يمكن استخدامه على التطبيق الثاني"
-        : "هذا الكود مخصص للتطبيق الثاني (FARZ 2) ولا يمكن استخدامه على التطبيق الأول",
+      message: recordIsFarzon
+        ? "هذا الكود مخصص لتطبيق فرزون (Farzon) ولا يمكن استخدامه على تطبيق فرز (Farz)"
+        : "هذا الكود مخصص لتطبيق فرز (Farz) ولا يمكن استخدامه على تطبيق فرزون (Farzon)",
       expiresAt: null,
       isActivated: false
     };
@@ -120,6 +126,7 @@ function licenseStatus(record, deviceId, mode = "activate", appId = "FARZ_V1") {
 }
 
 module.exports = {
+  isFarzonApp,
   generateActivationCode,
   computeExpiry,
   licenseStatus

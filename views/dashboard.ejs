@@ -33,30 +33,30 @@
          id="tab-btn-v1">
         <span class="tab-icon">📱</span>
         <div class="tab-text">
-          <span class="tab-title">التطبيق الأول (FARZ 1)</span>
-          <span class="tab-subtitle">تطبيق لوحات المركبات</span>
+          <span class="tab-title">تطبيق فرز (Farz)</span>
+          <span class="tab-subtitle">تطبيق لوحات المركبات الأساسي</span>
         </div>
         <span class="tab-badge"><%= codesV1.length %></span>
       </a>
 
       <a href="/admin?tab=FARZ_V2" 
-         class="app-tab <%= activeTab === 'FARZ_V2' ? 'active' : '' %>" 
+         class="app-tab app-tab-farzon <%= activeTab === 'FARZ_V2' ? 'active' : '' %>" 
          data-target="tab-panel-v2" 
          id="tab-btn-v2">
         <span class="tab-icon">🚗</span>
         <div class="tab-text">
-          <span class="tab-title">التطبيق الثاني (FARZ 2)</span>
-          <span class="tab-subtitle">تطبيق فرز V2 المطور</span>
+          <span class="tab-title">Farzon</span>
+          <span class="tab-subtitle">تطبيق فرزون المتطور</span>
         </div>
-        <span class="tab-badge tab-badge-purple"><%= codesV2.length %></span>
+        <span class="tab-badge tab-badge-green"><%= codesV2.length %></span>
       </a>
     </nav>
 
     <!-- PANEL 1: FARZ 1 -->
     <div id="tab-panel-v1" class="tab-panel <%= activeTab === 'FARZ_V1' ? 'active' : '' %>">
       <section class="panel-header">
-        <div class="panel-tag tag-blue">📱 التطبيق الأول (FARZ 1)</div>
-        <p class="panel-desc">إدارة أكواد وترخيصات التطبيق الأول فقط. لا يمكن استخدام هذه الأكواد على التطبيق الثاني.</p>
+        <div class="panel-tag tag-blue">📱 تطبيق فرز (Farz)</div>
+        <p class="panel-desc">إدارة أكواد وترخيصات تطبيق فرز الأساسي. تبدأ الأكواد بـ FARZ- ولا يمكن استخدامها على تطبيق فرزون.</p>
       </section>
 
       <section class="stats">
@@ -67,7 +67,7 @@
       </section>
 
       <section class="card">
-        <h2>إنشاء كود تفعيل جديد — التطبيق الأول (FARZ 1)</h2>
+        <h2>إنشاء كود تفعيل جديد — تطبيق فرز (Farz)</h2>
         <form method="post" action="/admin/codes" class="create-form">
           <input type="hidden" name="app_id" value="FARZ_V1" />
           <label class="client-name-field">
@@ -85,12 +85,12 @@
               <option value="months">شهور</option>
             </select>
           </label>
-          <button type="submit">إنشاء كود FARZ 1</button>
+          <button type="submit">إنشاء كود فرز (FARZ)</button>
         </form>
       </section>
 
       <section class="card">
-        <h2>قائمة أكواد التطبيق الأول والأجهزة المرتبطة</h2>
+        <h2>قائمة أكواد تطبيق فرز (Farz) والأجهزة المرتبطة</h2>
         <div class="table-wrap">
           <table>
             <thead>
@@ -156,11 +156,16 @@
       </section>
     </div>
 
-    <!-- PANEL 2: FARZ 2 -->
+    <!-- PANEL 2: FARZON -->
     <div id="tab-panel-v2" class="tab-panel <%= activeTab === 'FARZ_V2' ? 'active' : '' %>">
       <section class="panel-header">
-        <div class="panel-tag tag-purple">🚗 التطبيق الثاني (FARZ 2)</div>
-        <p class="panel-desc">إدارة أكواد وترخيصات التطبيق الثاني المطور. لا يمكن استخدام هذه الأكواد على التطبيق الأول.</p>
+        <div class="panel-tag tag-green">🚗 Farzon (فرزون)</div>
+        <p class="panel-desc">إدارة أكواد وترخيصات تطبيق Farzon. تبدأ الأكواد بالبادئة <strong>FARZON-</strong> ولا يمكن استخدامها على تطبيق فرز.</p>
+        <div style="margin-right:auto;">
+          <a href="/farzon/register" target="_blank" style="color:#6ee7b7; font-size:13px; text-decoration:none; border:1px solid rgba(52,211,153,0.4); padding:6px 14px; border-radius:10px; background:rgba(16,185,129,0.12); font-weight:600; display:inline-flex; align-items:center; gap:6px;">
+            🔗 صفحة تسجيل وتفعيل أجهزة Farzon
+          </a>
+        </div>
       </section>
 
       <section class="stats">
@@ -171,12 +176,12 @@
       </section>
 
       <section class="card">
-        <h2>إنشاء كود تفعيل جديد — التطبيق الثاني (FARZ 2)</h2>
+        <h2>إنشاء كود تفعيل ونشاط جديد — Farzon</h2>
         <form method="post" action="/admin/codes" class="create-form">
           <input type="hidden" name="app_id" value="FARZ_V2" />
           <label class="client-name-field">
             اسم العميل / المالك (اختياري)
-            <input type="text" name="client_name" maxlength="255" placeholder="مثال: مؤسسة التقنية - V2" />
+            <input type="text" name="client_name" maxlength="255" placeholder="مثال: مؤسسة التقنية - عميل Farzon" />
           </label>
           <label>
             المدة
@@ -189,12 +194,12 @@
               <option value="months">شهور</option>
             </select>
           </label>
-          <button type="submit" class="btn-purple">إنشاء كود FARZ 2</button>
+          <button type="submit" class="btn-green">إنشاء كود Farzon</button>
         </form>
       </section>
 
       <section class="card">
-        <h2>قائمة أكواد التطبيق الثاني والأجهزة المرتبطة</h2>
+        <h2>قائمة أكواد Farzon والأجهزة المرتبطة</h2>
         <div class="table-wrap">
           <table>
             <thead>
@@ -211,7 +216,7 @@
             <tbody>
               <% if (!codesV2.length) { %>
                 <tr>
-                  <td colspan="7" class="muted">لا توجد أكواد للتطبيق الثاني بعد. أنشئ كوداً من النموذج أعلاه.</td>
+                  <td colspan="7" class="muted">لا توجد أكواد لتطبيق Farzon بعد. أنشئ كوداً من النموذج أعلاه.</td>
                 </tr>
               <% } %>
               <% codesV2.forEach((item) => { %>

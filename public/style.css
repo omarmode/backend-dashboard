@@ -310,6 +310,76 @@ code { background: #100a24; padding: 4px 8px; border-radius: 8px; }
   margin-top: 4px;
 }
 
+/* Quota & Admin Files Styles */
+.quota-card {
+  background: linear-gradient(135deg, rgba(30, 27, 75, 0.9), rgba(49, 46, 129, 0.8));
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  border-radius: 18px;
+  padding: 20px 24px;
+  margin-bottom: 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.quota-title { font-size: 16px; font-weight: 700; color: #c4b5fd; margin-bottom: 4px; }
+.quota-desc { font-size: 13px; color: var(--muted); }
+.quota-pills { display: flex; gap: 12px; }
+.quota-pill {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  padding: 8px 14px;
+  border-radius: 12px;
+  text-align: center;
+}
+.quota-pill-num { font-size: 20px; font-weight: 800; color: #a78bfa; }
+.quota-pill-label { font-size: 11px; color: var(--muted); }
+
+.tag-purple {
+  background: rgba(139, 92, 246, 0.16);
+  color: #c4b5fd;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+}
+.tab-badge-purple {
+  background: rgba(139, 92, 246, 0.25);
+  color: #c4b5fd;
+}
+.app-tab-admins.active {
+  border-color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.12);
+}
+
+.file-row-icon { font-size: 20px; }
+.file-name-cell { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.btn-upload {
+  background: linear-gradient(90deg, #059669, #10b981);
+  color: white;
+  border: 0;
+  cursor: pointer;
+  font-weight: 700;
+}
+.btn-purple {
+  background: linear-gradient(90deg, #7c3aed, #a855f7);
+  color: white;
+  border: 0;
+  cursor: pointer;
+  font-weight: 700;
+}
+.inline-edit-form {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.inline-edit-form input {
+  padding: 6px 10px;
+  width: 90px;
+  font-size: 13px;
+}
+.inline-edit-form button {
+  padding: 6px 10px;
+  font-size: 12px;
+}
 
 @media (max-width: 800px) {
   .app-tabs-nav { grid-template-columns: 1fr; }

@@ -9,11 +9,24 @@
 <body>
   <header class="topbar">
     <div>
-      <p class="eyebrow">FARZ Admin Control Center</p>
-      <h1>إدارة أكواد التفعيل والتراخيص</h1>
+      <p class="eyebrow">FARZ Licensing & Administration</p>
+      <h1>
+        <% if (isSuperAdmin) { %>
+          مركز التحكم الرئيسي (Super Admin)
+        <% } else { %>
+          لوحة تحكم الأدمن الفرعي (Farzon Sub-Admin)
+        <% } %>
+      </h1>
     </div>
     <form method="post" action="/admin/logout">
-      <span class="muted">مرحباً، <%= adminUsername %></span>
+      <span class="muted" style="display:inline-flex; align-items:center; gap:8px;">
+        <span>مرحباً، <strong><%= adminUsername %></strong></span>
+        <% if (isSuperAdmin) { %>
+          <span class="badge badge-purple" style="font-weight:700;">👑 سوبر أدمن</span>
+        <% } else { %>
+          <span class="badge badge-green" style="font-weight:700;">👤 أدمن فرعي</span>
+        <% } %>
+      </span>
       <button type="submit" class="ghost">تسجيل الخروج</button>
     </form>
   </header>
@@ -26,18 +39,20 @@
     <% } %>
 
     <!-- App Switcher Tabs -->
-    <nav class="app-tabs-nav" aria-label="تبويبات التطبيقات">
-      <a href="/admin?tab=FARZ_V1" 
-         class="app-tab <%= activeTab === 'FARZ_V1' ? 'active' : '' %>" 
-         data-target="tab-panel-v1" 
-         id="tab-btn-v1">
-        <span class="tab-icon">📱</span>
-        <div class="tab-text">
-          <span class="tab-title">تطبيق فرز (Farz)</span>
-          <span class="tab-subtitle">تطبيق لوحات المركبات الأساسي</span>
-        </div>
-        <span class="tab-badge"><%= codesV1.length %></span>
-      </a>
+    <nav class="app-tabs-nav" aria-label="تبويبات التطبيقات" style="<%= !isSuperAdmin ? 'grid-template-columns: 1fr;' : 'grid-template-columns: repeat(3, 1fr);' %>">
+      <% if (isSuperAdmin) { %>
+        <a href="/admin?tab=FARZ_V1" 
+           class="app-tab <%= activeTab === 'FARZ_V1' ? 'active' : '' %>" 
+           data-target="tab-panel-v1" 
+           id="tab-btn-v1">
+          <span class="tab-icon">📱</span>
+          <div class="tab-text">
+            <span class="tab-title">تطبيق فرز (Farz)</span>
+            <span class="tab-subtitle">تطبيق لوحات المركبات الأساسي</span>
+          </div>
+          <span class="tab-badge"><%= codesV1.length %></span>
+        </a>
+      <% } %>
 
       <a href="/admin?tab=FARZ_V2" 
          class="app-tab app-tab-farzon <%= activeTab === 'FARZ_V2' ? 'active' : '' %>" 
@@ -45,14 +60,29 @@
          id="tab-btn-v2">
         <span class="tab-icon">🚗</span>
         <div class="tab-text">
-          <span class="tab-title">Farzon</span>
-          <span class="tab-subtitle">تطبيق فرزون المتطور</span>
+          <span class="tab-title">Farzon (فرزون)</span>
+          <span class="tab-subtitle"><%= isSuperAdmin ? 'إدارة أكواد وتراخيص Farzon' : 'إدارة المشتركين وملفات البيانات' %></span>
         </div>
         <span class="tab-badge tab-badge-green"><%= codesV2.length %></span>
       </a>
+
+      <% if (isSuperAdmin) { %>
+        <a href="/admin?tab=ADMINS" 
+           class="app-tab app-tab-admins <%= activeTab === 'ADMINS' ? 'active' : '' %>" 
+           data-target="tab-panel-admins" 
+           id="tab-btn-admins">
+          <span class="tab-icon">👥</span>
+          <div class="tab-text">
+            <span class="tab-title">إدارة الأدمنز الفرعيين</span>
+            <span class="tab-subtitle">الحصص والصلاحيات والحسابات</span>
+          </div>
+          <span class="tab-badge tab-badge-purple"><%= subAdmins.length %></span>
+        </a>
+      <% } %>
     </nav>
 
-    <!-- PANEL 1: FARZ 1 -->
+    <!-- PANEL 1: FARZ 1 (SUPER ADMIN ONLY) -->
+    <% if (isSuperAdmin) { %>
     <div id="tab-panel-v1" class="tab-panel <%= activeTab === 'FARZ_V1' ? 'active' : '' %>">
       <section class="panel-header">
         <div class="panel-tag tag-blue">📱 تطبيق فرز (Farz)</div>
@@ -155,12 +185,44 @@
         </div>
       </section>
     </div>
+    <% } %>
 
     <!-- PANEL 2: FARZON -->
     <div id="tab-panel-v2" class="tab-panel <%= activeTab === 'FARZ_V2' ? 'active' : '' %>">
+      
+      <!-- Sub-Admin Quota Overview Card -->
+      <% if (!isSuperAdmin) { %>
+        <div class="quota-card">
+          <div>
+            <div class="quota-title">📊 رصيد حصة الأكواد المخصصة لك</div>
+            <div class="quota-desc">يمكنك إصدار أكواد تفعيل جديدة لعملائك ضمن حدود الحصة المصرح بها من السوبر أدمن.</div>
+          </div>
+          <div class="quota-pills">
+            <div class="quota-pill">
+              <div class="quota-pill-num"><%= subAdminQuota.max %></div>
+              <div class="quota-pill-label">الحصة الإجمالية</div>
+            </div>
+            <div class="quota-pill">
+              <div class="quota-pill-num" style="color: #6ee7b7;"><%= subAdminQuota.used %></div>
+              <div class="quota-pill-label">الأكواد المنشأة</div>
+            </div>
+            <div class="quota-pill">
+              <div class="quota-pill-num" style="color: <%= subAdminQuota.remaining > 0 ? '#38bdf8' : '#f87171' %>;"><%= subAdminQuota.remaining %></div>
+              <div class="quota-pill-label">المتبقي لك</div>
+            </div>
+          </div>
+        </div>
+      <% } %>
+
       <section class="panel-header">
         <div class="panel-tag tag-green">🚗 Farzon (فرزون)</div>
-        <p class="panel-desc">إدارة أكواد وترخيصات تطبيق Farzon. تبدأ الأكواد بالبادئة <strong>FARZON-</strong> ولا يمكن استخدامها على تطبيق فرز.</p>
+        <p class="panel-desc">
+          <% if (isSuperAdmin) { %>
+            إدارة كافة أكواد وتراخيص Farzon وتوزيع ملفات الداتا. تبدأ الأكواد بـ <strong>FARZON-</strong>.
+          <% } else { %>
+            لوحة إدارة الأكواد الخاصة بك ورفع ملفات الداتا. يتم تنزيل هذه الملفات تلقائياً لمشتركيك فقط وبحماية تامة.
+          <% } %>
+        </p>
         <div style="margin-right:auto;">
           <a href="/farzon/register" target="_blank" style="color:#6ee7b7; font-size:13px; text-decoration:none; border:1px solid rgba(52,211,153,0.4); padding:6px 14px; border-radius:10px; background:rgba(16,185,129,0.12); font-weight:600; display:inline-flex; align-items:center; gap:6px;">
             🔗 صفحة تسجيل وتفعيل أجهزة Farzon
@@ -175,29 +237,108 @@
         <article><strong><%= statsV2.expired %></strong><span>منتهية</span></article>
       </section>
 
-      <section class="card">
-        <h2>إنشاء كود تفعيل ونشاط جديد — Farzon</h2>
-        <form method="post" action="/admin/codes" class="create-form">
-          <input type="hidden" name="app_id" value="FARZ_V2" />
-          <label class="client-name-field">
-            اسم العميل / المالك (اختياري)
-            <input type="text" name="client_name" maxlength="255" placeholder="مثال: مؤسسة التقنية - عميل Farzon" />
+      <!-- SECTION: ADMIN EXCEL DATA FILES -->
+      <section class="card" style="border: 1px solid rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.04);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
+          <div>
+            <h2 style="color: #6ee7b7; margin-bottom: 4px;">📁 إدارة ملفات البيانات (Excel) — لتطبيق Farzon</h2>
+            <p class="muted" style="font-size: 13px;">
+              الملفات التي ترفعها هنا ستكون متاحة تلقائياً فقط للمشتركين الذين فعّلوا التطبيق بأكوادك عبر زر <strong>«تحميل الداتا من الأدمن»</strong>، ومحمية من الحفظ أو النقل خارج التطبيق.
+            </p>
+          </div>
+        </div>
+
+        <!-- Upload Form -->
+        <form method="post" action="/admin/files/upload" enctype="multipart/form-data" style="display:flex; gap:12px; align-items:end; flex-wrap:wrap; margin-bottom:16px; padding:14px; background:rgba(15, 23, 42, 0.5); border-radius:12px; border:1px dashed rgba(52, 211, 153, 0.3);">
+          <label style="flex:1; min-width:240px;">
+            <span>اختر ملف Excel (.xlsx, .xls, .xlsm, .xltx, .xltm, .xlsb, .csv)</span>
+            <input type="file" name="dataFile" accept=".xlsx,.xls,.xlsm,.xltx,.xltm,.xlsb,.csv" required style="padding:8px;" />
           </label>
-          <label>
-            المدة
-            <input type="number" name="durationValue" min="1" value="30" required />
-          </label>
-          <label>
-            الوحدة
-            <select name="durationUnit">
-              <option value="days">أيام</option>
-              <option value="months">شهور</option>
-            </select>
-          </label>
-          <button type="submit" class="btn-green">إنشاء كود Farzon</button>
+          <button type="submit" class="btn-upload" style="padding:10px 20px;">
+            📤 رفع ملف البيانات إلى السيرفر
+          </button>
         </form>
+
+        <!-- Uploaded Files Table -->
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>اسم الملف</th>
+                <th>عدد السجلات التقريبي</th>
+                <th>حجم الملف</th>
+                <th>تاريخ الرفع</th>
+                <th>إجراءات</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (!adminFiles.length) { %>
+                <tr>
+                  <td colspan="5" class="muted" style="text-align:center; padding:18px;">
+                    لم يتم رفع أي ملفات بيانات بعد. ارفع ملف Excel ليتمكن مشتركونك من تحميله داخل التطبيق.
+                  </td>
+                </tr>
+              <% } %>
+              <% adminFiles.forEach((file) => { %>
+                <tr>
+                  <td>
+                    <div class="file-name-cell">
+                      <span class="file-row-icon">📊</span>
+                      <span><%= file.fileName %></span>
+                    </div>
+                  </td>
+                  <td><span class="badge badge-green"><%= file.recordsCount.toLocaleString() %> سجل</span></td>
+                  <td><%= file.sizeKb %> KB</td>
+                  <td><%= file.createdAtText %></td>
+                  <td>
+                    <form method="post" action="/admin/files/<%= file.id %>/delete" onsubmit="return confirm('هل أنت متأكد من حذف هذا الملف من السيرفر؟ سيتم إلغاؤه من هواتف المشتركين عند المزامنة.');">
+                      <button type="submit" class="danger" style="padding:6px 12px; font-size:12px;">حذف من السيرفر</button>
+                    </form>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
       </section>
 
+      <!-- Create Farzon Activation Code Form -->
+      <section class="card">
+        <h2>
+          إنشاء كود تفعيل ونشاط جديد — Farzon
+          <% if (!isSuperAdmin) { %>
+            <span class="muted" style="font-size:13px; font-weight:normal;">(المتبقي من حصتك: <%= subAdminQuota.remaining %> كود)</span>
+          <% } %>
+        </h2>
+
+        <% if (!isSuperAdmin && subAdminQuota.remaining <= 0) { %>
+          <div class="alert alert-error">
+            لقد استنفدت حصة الأكواد المحددة لك بالكامل (<%= subAdminQuota.max %> كود). يرجى التواصل مع السوبر أدمن لزيادة حصتك.
+          </div>
+        <% } else { %>
+          <form method="post" action="/admin/codes" class="create-form">
+            <input type="hidden" name="app_id" value="FARZ_V2" />
+            <label class="client-name-field">
+              اسم العميل / المالك (اختياري)
+              <input type="text" name="client_name" maxlength="255" placeholder="مثال: مؤسسة التقنية - عميل Farzon" />
+            </label>
+            <label>
+              المدة
+              <input type="number" name="durationValue" min="1" value="30" required />
+            </label>
+            <label>
+              الوحدة
+              <select name="durationUnit">
+                <option value="days">أيام</option>
+                <option value="months">شهور</option>
+              </select>
+            </label>
+            <button type="submit" class="btn-green">إنشاء كود Farzon</button>
+          </form>
+        <% } %>
+      </section>
+
+      <!-- Farzon Codes Table -->
       <section class="card">
         <h2>قائمة أكواد Farzon والأجهزة المرتبطة</h2>
         <div class="table-wrap">
@@ -264,6 +405,109 @@
         </div>
       </section>
     </div>
+
+    <!-- PANEL 3: SUB-ADMINS MANAGEMENT (SUPER ADMIN ONLY) -->
+    <% if (isSuperAdmin) { %>
+    <div id="tab-panel-admins" class="tab-panel <%= activeTab === 'ADMINS' ? 'active' : '' %>">
+      <section class="panel-header">
+        <div class="panel-tag tag-purple">👥 إدارة الأدمنز الفرعيين</div>
+        <p class="panel-desc">
+          أنشئ حسابات للأدمنز الفرعيين وحدد الحصة القصوى لكل أدمن لإصدار أكواد Farzon ومتابعة نشاطهم.
+        </p>
+      </section>
+
+      <!-- Create Sub-Admin Form -->
+      <section class="card">
+        <h2>إنشاء حساب أدمن فرعي جديد (Sub-Admin)</h2>
+        <form method="post" action="/admin/sub-admins" class="create-form" style="grid-template-columns: 1fr 1fr 1fr auto;">
+          <label>
+            اسم المستخدم
+            <input type="text" name="username" placeholder="مثال: admin_alex" required autocomplete="off" />
+          </label>
+          <label>
+            كلمة المرور
+            <input type="password" name="password" placeholder="6 أحرف على الأقل" required minlength="6" />
+          </label>
+          <label>
+            حصة الأكواد المسموحة
+            <input type="number" name="max_codes_quota" min="1" value="50" required />
+          </label>
+          <button type="submit" class="btn-purple">إنشاء حساب الأدمن</button>
+        </form>
+      </section>
+
+      <!-- Sub-Admins Table -->
+      <section class="card">
+        <h2>قائمة الأدمنز الفرعيين والحصص</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>اسم المستخدم</th>
+                <th>الحالة</th>
+                <th>الحصة الكلية</th>
+                <th>الأكواد المنشأة</th>
+                <th>المتبقي</th>
+                <th>تاريخ الإنشاء</th>
+                <th>إجراءات الحساب والحصة</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (!subAdmins.length) { %>
+                <tr>
+                  <td colspan="7" class="muted" style="text-align:center; padding:18px;">
+                    لا يوجد أدمنز فرعيين مسجلين حتى الآن. أنشئ حساباً من النموذج أعلاه.
+                  </td>
+                </tr>
+              <% } %>
+              <% subAdmins.forEach((sa) => { %>
+                <tr>
+                  <td>
+                    <strong><%= sa.username %></strong>
+                  </td>
+                  <td>
+                    <% if (sa.isActive) { %>
+                      <span class="badge badge-green">نشط</span>
+                    <% } else { %>
+                      <span class="badge badge-red">معطل / موقوف</span>
+                    <% } %>
+                  </td>
+                  <td>
+                    <!-- Inline Quota Edit Form -->
+                    <form method="post" action="/admin/sub-admins/<%= sa.id %>/quota" class="inline-edit-form">
+                      <input type="number" name="max_codes_quota" value="<%= sa.maxCodesQuota %>" min="0" required />
+                      <button type="submit" class="ghost" title="حفظ الحصة">تعديل</button>
+                    </form>
+                  </td>
+                  <td><span class="badge badge-purple"><%= sa.codesCount %> كود</span></td>
+                  <td>
+                    <span class="badge <%= sa.remainingQuota > 0 ? 'badge-green' : 'badge-red' %>">
+                      <%= sa.remainingQuota %> كود
+                    </span>
+                  </td>
+                  <td><%= sa.createdAtText %></td>
+                  <td class="actions">
+                    <form method="post" action="/admin/sub-admins/<%= sa.id %>/toggle">
+                      <button type="submit" class="<%= sa.isActive ? 'danger' : 'btn-green' %>">
+                        <%= sa.isActive ? 'تعطيل الحساب' : 'تفعيل الحساب' %>
+                      </button>
+                    </form>
+
+                    <!-- Quick Password Reset -->
+                    <form method="post" action="/admin/sub-admins/<%= sa.id %>/reset-password" class="inline-edit-form" onsubmit="return confirm('هل ترغب بتعيين كلمة المرور الجديدة لهذا الأدمن؟');">
+                      <input type="password" name="new_password" placeholder="كلمة سر جديدة" minlength="6" required style="width:110px;" />
+                      <button type="submit" class="ghost">تغيير</button>
+                    </form>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+    <% } %>
+
   </main>
 
   <script>
@@ -272,7 +516,9 @@
       tabLink.addEventListener('click', function(e) {
         e.preventDefault();
         var targetPanelId = tabLink.getAttribute('data-target');
-        var newTabId = targetPanelId === 'tab-panel-v2' ? 'FARZ_V2' : 'FARZ_V1';
+        var newTabId = 'FARZ_V2';
+        if (targetPanelId === 'tab-panel-v1') newTabId = 'FARZ_V1';
+        if (targetPanelId === 'tab-panel-admins') newTabId = 'ADMINS';
 
         document.querySelectorAll('.app-tab').forEach(function(t) { t.classList.remove('active'); });
         document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });

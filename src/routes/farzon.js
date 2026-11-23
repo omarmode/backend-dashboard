@@ -1,15 +1,9 @@
 const express = require("express");
 const ActivationCode = require("../models/ActivationCode");
-const { licenseStatus, isFarzonApp } = require("../utils/codes");
+const Manager = require("../models/Manager");
+const { licenseStatus, normalizeCode } = require("../utils/codes");
 
 const router = express.Router();
-
-function normalizeCode(code) {
-  return String(code || "")
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, "");
-}
 
 // GET /farzon/register - Web UI for device activation & registration
 router.get("/register", (req, res) => {
@@ -43,7 +37,8 @@ router.post("/register", async (req, res) => {
 
   try {
     const record = await ActivationCode.findByCode(code);
-    const result = licenseStatus(record, deviceId, "activate", "FARZON");
+    const manager = record && record.managerId ? await Manager.findById(record.managerId) : null;
+    const result = licenseStatus(record, deviceId, "activate", "FARZON", manager);
 
     if (!result.success) {
       return res.render("farzon-register", {
@@ -58,7 +53,7 @@ router.post("/register", async (req, res) => {
     const now = new Date();
     const updates = {
       isActivated: true,
-      deviceId: deviceId,
+      deviceId,
       lastSeenAt: now.toISOString()
     };
     if (!record.activatedAt) {
@@ -80,7 +75,7 @@ router.post("/register", async (req, res) => {
       initialClientName: ""
     });
   } catch (error) {
-    console.error("Farzon register error:", error);
+    console.error("Farzon register error:", error.message);
     return res.render("farzon-register", {
       alert: { type: "error", message: "حدث خطأ أثناء معالجة التسجيل. حاول مرة أخرى." },
       successData: null,

@@ -3,29 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title><%= title %> | FARZ</title>
+  <title><%= title %> | FARZ & Farzon</title>
   <link rel="stylesheet" href="/public/style.css" />
 </head>
 <body>
   <header class="topbar">
     <div>
-      <p class="eyebrow">FARZ Licensing & Administration</p>
-      <h1>
-        <% if (isSuperAdmin) { %>
-          مركز التحكم الرئيسي (Super Admin)
-        <% } else { %>
-          لوحة تحكم الأدمن الفرعي (Farzon Sub-Admin)
-        <% } %>
-      </h1>
+      <p class="eyebrow">FARZ & Farzon Central Licensing</p>
+      <h1>مركز التحكم الرئيسي (Super Admin)</h1>
     </div>
-    <form method="post" action="/admin/logout">
+    <form method="post" action="/admin/logout" style="display:flex; align-items:center; gap:12px;">
       <span class="muted" style="display:inline-flex; align-items:center; gap:8px;">
         <span>مرحباً، <strong><%= adminUsername %></strong></span>
-        <% if (isSuperAdmin) { %>
-          <span class="badge badge-purple" style="font-weight:700;">👑 سوبر أدمن</span>
-        <% } else { %>
-          <span class="badge badge-green" style="font-weight:700;">👤 أدمن فرعي</span>
-        <% } %>
+        <span class="badge badge-purple" style="font-weight:700;">👑 سوبر أدمن</span>
       </span>
       <button type="submit" class="ghost">تسجيل الخروج</button>
     </form>
@@ -38,55 +28,52 @@
       </div>
     <% } %>
 
-    <!-- App Switcher Tabs -->
-    <nav class="app-tabs-nav" aria-label="تبويبات التطبيقات" style="<%= !isSuperAdmin ? 'grid-template-columns: 1fr;' : 'grid-template-columns: repeat(3, 1fr);' %>">
-      <% if (isSuperAdmin) { %>
-        <a href="/admin?tab=FARZ_V1" 
-           class="app-tab <%= activeTab === 'FARZ_V1' ? 'active' : '' %>" 
-           data-target="tab-panel-v1" 
-           id="tab-btn-v1">
-          <span class="tab-icon">📱</span>
-          <div class="tab-text">
-            <span class="tab-title">تطبيق فرز (Farz)</span>
-            <span class="tab-subtitle">تطبيق لوحات المركبات الأساسي</span>
-          </div>
-          <span class="tab-badge"><%= codesV1.length %></span>
-        </a>
-      <% } %>
+    <!-- 3 Main Tabs -->
+    <nav class="app-tabs-nav" aria-label="تبويبات النظام" style="grid-template-columns: repeat(3, 1fr);">
+      <a href="/admin?tab=FARZ_V1"
+         class="app-tab <%= activeTab === 'FARZ_V1' ? 'active' : '' %>"
+         data-target="tab-panel-v1"
+         id="tab-btn-v1">
+        <span class="tab-icon">📱</span>
+        <div class="tab-text">
+          <span class="tab-title">تطبيق فرز (Farz)</span>
+          <span class="tab-subtitle">التطبيق الأول (أكواد FARZ-)</span>
+        </div>
+        <span class="tab-badge"><%= codesV1.length %></span>
+      </a>
 
-      <a href="/admin?tab=FARZ_V2" 
-         class="app-tab app-tab-farzon <%= activeTab === 'FARZ_V2' ? 'active' : '' %>" 
-         data-target="tab-panel-v2" 
+      <a href="/admin?tab=FARZ_V2"
+         class="app-tab app-tab-farzon <%= activeTab === 'FARZ_V2' ? 'active' : '' %>"
+         data-target="tab-panel-v2"
          id="tab-btn-v2">
         <span class="tab-icon">🚗</span>
         <div class="tab-text">
-          <span class="tab-title">Farzon (فرزون)</span>
-          <span class="tab-subtitle"><%= isSuperAdmin ? 'إدارة أكواد وتراخيص Farzon' : 'إدارة المشتركين وملفات البيانات' %></span>
+          <span class="tab-title">مستخدمو Farzon العاديون</span>
+          <span class="tab-subtitle">أكواد 10fraz العادية فقط</span>
         </div>
         <span class="tab-badge tab-badge-green"><%= codesV2.length %></span>
       </a>
 
-      <% if (isSuperAdmin) { %>
-        <a href="/admin?tab=ADMINS" 
-           class="app-tab app-tab-admins <%= activeTab === 'ADMINS' ? 'active' : '' %>" 
-           data-target="tab-panel-admins" 
-           id="tab-btn-admins">
-          <span class="tab-icon">👥</span>
-          <div class="tab-text">
-            <span class="tab-title">إدارة الأدمنز الفرعيين</span>
-            <span class="tab-subtitle">الحصص والصلاحيات والحسابات</span>
-          </div>
-          <span class="tab-badge tab-badge-purple"><%= subAdmins.length %></span>
-        </a>
-      <% } %>
+      <a href="/admin?tab=MANAGERS"
+         class="app-tab app-tab-admins <%= activeTab === 'MANAGERS' ? 'active' : '' %>"
+         data-target="tab-panel-managers"
+         id="tab-btn-managers">
+        <span class="tab-icon">👥</span>
+        <div class="tab-text">
+          <span class="tab-title">إدارة المديرين ومستخدميهم</span>
+          <span class="tab-subtitle">المجموعات، الحصص، وأكواد الفرق</span>
+        </div>
+        <span class="tab-badge tab-badge-purple"><%= managers.length %></span>
+      </a>
     </nav>
 
-    <!-- PANEL 1: FARZ 1 (SUPER ADMIN ONLY) -->
-    <% if (isSuperAdmin) { %>
+    <!-- =================================================================== -->
+    <!-- TAB 1: FARZ_V1 (Original First App — Completely Independent)        -->
+    <!-- =================================================================== -->
     <div id="tab-panel-v1" class="tab-panel <%= activeTab === 'FARZ_V1' ? 'active' : '' %>">
       <section class="panel-header">
-        <div class="panel-tag tag-blue">📱 تطبيق فرز (Farz)</div>
-        <p class="panel-desc">إدارة أكواد وترخيصات تطبيق فرز الأساسي. تبدأ الأكواد بـ FARZ- ولا يمكن استخدامها على تطبيق فرزون.</p>
+        <div class="panel-tag tag-blue">📱 تطبيق فرز (Farz - FARZ_V1)</div>
+        <p class="panel-desc">إدارة أكواد وتراخيص التطبيق الأول المستقل. تبدأ الأكواد بـ <strong>FARZ-</strong> ولا يمكن استخدامها على تطبيق Farzon.</p>
       </section>
 
       <section class="stats">
@@ -106,7 +93,7 @@
           </label>
           <label>
             المدة
-            <input type="number" name="durationValue" min="1" value="30" required />
+            <input type="number" name="durationValue" min="1" max="3650" value="30" required />
           </label>
           <label>
             الوحدة
@@ -126,8 +113,8 @@
             <thead>
               <tr>
                 <th>الكود</th>
-                <th>صاحب الكود / العميل</th>
-                <th>الصلاحية</th>
+                <th>العميل</th>
+                <th>الصلاحية والمتبقي</th>
                 <th>الحالة</th>
                 <th>معرف الجهاز</th>
                 <th>آخر ظهور</th>
@@ -136,17 +123,15 @@
             </thead>
             <tbody>
               <% if (!codesV1.length) { %>
-                <tr>
-                  <td colspan="7" class="muted">لا توجد أكواد للتطبيق الأول بعد. أنشئ كوداً من النموذج أعلاه.</td>
-                </tr>
+                <tr><td colspan="7" class="muted">لا توجد أكواد للتطبيق الأول بعد.</td></tr>
               <% } %>
               <% codesV1.forEach((item) => { %>
                 <tr>
                   <td><code><%= item.code %></code></td>
                   <td><%= item.clientNameText %></td>
                   <td>
-                    <%= item.expiresAtText %>
-                    <div class="muted"><%= item.durationLabel || '' %></div>
+                    <div><strong><%= item.remainingLabel %></strong></div>
+                    <div class="muted" style="font-size:12px;">الإصدار: <%= item.createdAtText %> | المدة: <%= item.durationDays %> يوم</div>
                   </td>
                   <td>
                     <% if (item.isBlocked) { %>
@@ -159,24 +144,20 @@
                       <span class="badge">غير مستخدم</span>
                     <% } %>
                   </td>
-                  <td><%= item.deviceId || '—' %></td>
-                  <td><%= item.lastSeenText %></td>
+                  <td><small><%= item.deviceId || '—' %></small></td>
+                  <td><small><%= item.lastSeenText %></small></td>
                   <td class="actions">
+                    <form method="post" action="/admin/codes/<%= item._id %>/extend" class="inline-edit-form">
+                      <input type="number" name="days" min="1" max="3650" value="30" required title="عدد الأيام للتمديد" />
+                      <button type="submit" class="ghost">+تمديد</button>
+                    </form>
                     <% if (item.isBlocked) { %>
-                      <form method="post" action="/admin/codes/<%= item._id %>/unblock">
-                        <button type="submit" class="ghost">إلغاء الحظر</button>
-                      </form>
+                      <form method="post" action="/admin/codes/<%= item._id %>/unblock"><button type="submit" class="ghost">إلغاء الحظر</button></form>
                     <% } else { %>
-                      <form method="post" action="/admin/codes/<%= item._id %>/block">
-                        <button type="submit" class="danger">حظر / تعطيل</button>
-                      </form>
+                      <form method="post" action="/admin/codes/<%= item._id %>/block"><button type="submit" class="danger">حظر</button></form>
                     <% } %>
-                    <form method="post" action="/admin/codes/<%= item._id %>/force-logout">
-                      <button type="submit">طرد الجهاز</button>
-                    </form>
-                    <form method="post" action="/admin/codes/<%= item._id %>/delete" onsubmit="return confirm('هل أنت متأكد من حذف هذا الكود نهائياً؟');">
-                      <button type="submit" class="ghost">حذف</button>
-                    </form>
+                    <form method="post" action="/admin/codes/<%= item._id %>/force-logout"><button type="submit">طرد الجهاز</button></form>
+                    <form method="post" action="/admin/codes/<%= item._id %>/delete" onsubmit="return confirm('هل أنت متأكد من حذف هذا الكود نهائياً؟');"><button type="submit" class="ghost">حذف</button></form>
                   </td>
                 </tr>
               <% }) %>
@@ -185,43 +166,15 @@
         </div>
       </section>
     </div>
-    <% } %>
 
-    <!-- PANEL 2: FARZON -->
+    <!-- =================================================================== -->
+    <!-- TAB 2: FARZON REGULAR USERS ONLY (No Manager or Manager-User Codes) -->
+    <!-- =================================================================== -->
     <div id="tab-panel-v2" class="tab-panel <%= activeTab === 'FARZ_V2' ? 'active' : '' %>">
-      
-      <!-- Sub-Admin Quota Overview Card -->
-      <% if (!isSuperAdmin) { %>
-        <div class="quota-card">
-          <div>
-            <div class="quota-title">📊 رصيد حصة الأكواد المخصصة لك</div>
-            <div class="quota-desc">يمكنك إصدار أكواد تفعيل جديدة لعملائك ضمن حدود الحصة المصرح بها من السوبر أدمن.</div>
-          </div>
-          <div class="quota-pills">
-            <div class="quota-pill">
-              <div class="quota-pill-num"><%= subAdminQuota.max %></div>
-              <div class="quota-pill-label">الحصة الإجمالية</div>
-            </div>
-            <div class="quota-pill">
-              <div class="quota-pill-num" style="color: #6ee7b7;"><%= subAdminQuota.used %></div>
-              <div class="quota-pill-label">الأكواد المنشأة</div>
-            </div>
-            <div class="quota-pill">
-              <div class="quota-pill-num" style="color: <%= subAdminQuota.remaining > 0 ? '#38bdf8' : '#f87171' %>;"><%= subAdminQuota.remaining %></div>
-              <div class="quota-pill-label">المتبقي لك</div>
-            </div>
-          </div>
-        </div>
-      <% } %>
-
       <section class="panel-header">
-        <div class="panel-tag tag-green">🚗 Farzon (فرزون)</div>
+        <div class="panel-tag tag-green">🚗 مستخدمو Farzon العاديون (10fraz)</div>
         <p class="panel-desc">
-          <% if (isSuperAdmin) { %>
-            إدارة كافة أكواد وتراخيص Farzon وتوزيع ملفات الداتا. تبدأ الأكواد بـ <strong>FARZON-</strong>.
-          <% } else { %>
-            لوحة إدارة الأكواد الخاصة بك ورفع ملفات الداتا. يتم تنزيل هذه الملفات تلقائياً لمشتركيك فقط وبحماية تامة.
-          <% } %>
+          إصدار وإدارة أكواد المستخدمين العاديين لتطبيق <strong>10fraz / Farzon</strong>. لا تظهر لهم أي خصائص أو ملفات للمديرين، وتبدأ الأكواد بـ <strong>FARZON-</strong>.
         </p>
         <div style="margin-right:auto;">
           <a href="/farzon/register" target="_blank" style="color:#6ee7b7; font-size:13px; text-decoration:none; border:1px solid rgba(52,211,153,0.4); padding:6px 14px; border-radius:10px; background:rgba(16,185,129,0.12); font-weight:600; display:inline-flex; align-items:center; gap:6px;">
@@ -231,142 +184,61 @@
       </section>
 
       <section class="stats">
-        <article><strong><%= statsV2.total %></strong><span>إجمالي الأكواد</span></article>
+        <article><strong><%= statsV2.total %></strong><span>إجمالي الأكواد العادية</span></article>
         <article><strong><%= statsV2.active %></strong><span>سارية ومفعلة</span></article>
         <article><strong><%= statsV2.blocked %></strong><span>محظورة</span></article>
         <article><strong><%= statsV2.expired %></strong><span>منتهية</span></article>
       </section>
 
-      <!-- SECTION: ADMIN EXCEL DATA FILES -->
-      <section class="card" style="border: 1px solid rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.04);">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
-          <div>
-            <h2 style="color: #6ee7b7; margin-bottom: 4px;">📁 إدارة ملفات البيانات (Excel) — لتطبيق Farzon</h2>
-            <p class="muted" style="font-size: 13px;">
-              الملفات التي ترفعها هنا ستكون متاحة تلقائياً فقط للمشتركين الذين فعّلوا التطبيق بأكوادك عبر زر <strong>«تحميل الداتا من الأدمن»</strong>، ومحمية من الحفظ أو النقل خارج التطبيق.
-            </p>
-          </div>
-        </div>
-
-        <!-- Upload Form -->
-        <form method="post" action="/admin/files/upload" enctype="multipart/form-data" style="display:flex; gap:12px; align-items:end; flex-wrap:wrap; margin-bottom:16px; padding:14px; background:rgba(15, 23, 42, 0.5); border-radius:12px; border:1px dashed rgba(52, 211, 153, 0.3);">
-          <label style="flex:1; min-width:240px;">
-            <span>اختر ملف Excel (.xlsx, .xls, .xlsm, .xltx, .xltm, .xlsb, .csv)</span>
-            <input type="file" name="dataFile" accept=".xlsx,.xls,.xlsm,.xltx,.xltm,.xlsb,.csv" required style="padding:8px;" />
+      <section class="card">
+        <h2>إنشاء كود مستخدم عادي جديد — Farzon</h2>
+        <form method="post" action="/admin/codes" class="create-form">
+          <input type="hidden" name="app_id" value="FARZ_V2" />
+          <label class="client-name-field">
+            اسم العميل / المالك (اختياري)
+            <input type="text" name="client_name" maxlength="255" placeholder="مثال: عميل عادي - فرزون" />
           </label>
-          <button type="submit" class="btn-upload" style="padding:10px 20px;">
-            📤 رفع ملف البيانات إلى السيرفر
-          </button>
+          <label>
+            المدة
+            <input type="number" name="durationValue" min="1" max="3650" value="30" required />
+          </label>
+          <label>
+            الوحدة
+            <select name="durationUnit">
+              <option value="days">أيام</option>
+              <option value="months">شهور</option>
+            </select>
+          </label>
+          <button type="submit" class="btn-green">إنشاء كود Farzon عادي</button>
         </form>
-
-        <!-- Uploaded Files Table -->
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>اسم الملف</th>
-                <th>عدد السجلات التقريبي</th>
-                <th>حجم الملف</th>
-                <th>تاريخ الرفع</th>
-                <th>إجراءات</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% if (!adminFiles.length) { %>
-                <tr>
-                  <td colspan="5" class="muted" style="text-align:center; padding:18px;">
-                    لم يتم رفع أي ملفات بيانات بعد. ارفع ملف Excel ليتمكن مشتركونك من تحميله داخل التطبيق.
-                  </td>
-                </tr>
-              <% } %>
-              <% adminFiles.forEach((file) => { %>
-                <tr>
-                  <td>
-                    <div class="file-name-cell">
-                      <span class="file-row-icon">📊</span>
-                      <span><%= file.fileName %></span>
-                    </div>
-                  </td>
-                  <td><span class="badge badge-green"><%= file.recordsCount.toLocaleString() %> سجل</span></td>
-                  <td><%= file.sizeKb %> KB</td>
-                  <td><%= file.createdAtText %></td>
-                  <td>
-                    <form method="post" action="/admin/files/<%= file.id %>/delete" onsubmit="return confirm('هل أنت متأكد من حذف هذا الملف من السيرفر؟ سيتم إلغاؤه من هواتف المشتركين عند المزامنة.');">
-                      <button type="submit" class="danger" style="padding:6px 12px; font-size:12px;">حذف من السيرفر</button>
-                    </form>
-                  </td>
-                </tr>
-              <% }) %>
-            </tbody>
-          </table>
-        </div>
       </section>
 
-      <!-- Create Farzon Activation Code Form -->
       <section class="card">
-        <h2>
-          إنشاء كود تفعيل ونشاط جديد — Farzon
-          <% if (!isSuperAdmin) { %>
-            <span class="muted" style="font-size:13px; font-weight:normal;">(المتبقي من حصتك: <%= subAdminQuota.remaining %> كود)</span>
-          <% } %>
-        </h2>
-
-        <% if (!isSuperAdmin && subAdminQuota.remaining <= 0) { %>
-          <div class="alert alert-error">
-            لقد استنفدت حصة الأكواد المحددة لك بالكامل (<%= subAdminQuota.max %> كود). يرجى التواصل مع السوبر أدمن لزيادة حصتك.
-          </div>
-        <% } else { %>
-          <form method="post" action="/admin/codes" class="create-form">
-            <input type="hidden" name="app_id" value="FARZ_V2" />
-            <label class="client-name-field">
-              اسم العميل / المالك (اختياري)
-              <input type="text" name="client_name" maxlength="255" placeholder="مثال: مؤسسة التقنية - عميل Farzon" />
-            </label>
-            <label>
-              المدة
-              <input type="number" name="durationValue" min="1" value="30" required />
-            </label>
-            <label>
-              الوحدة
-              <select name="durationUnit">
-                <option value="days">أيام</option>
-                <option value="months">شهور</option>
-              </select>
-            </label>
-            <button type="submit" class="btn-green">إنشاء كود Farzon</button>
-          </form>
-        <% } %>
-      </section>
-
-      <!-- Farzon Codes Table -->
-      <section class="card">
-        <h2>قائمة أكواد Farzon والأجهزة المرتبطة</h2>
+        <h2>قائمة أكواد مستخدمي Farzon العاديين والأجهزة المرتبطة</h2>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>الكود</th>
-                <th>صاحب الكود / العميل</th>
-                <th>الصلاحية</th>
+                <th>صاحب الكود</th>
+                <th>الصلاحية والمتبقي</th>
                 <th>الحالة</th>
                 <th>معرف الجهاز</th>
-                <th>آخر ظهور</th>
+                <th>أول تفعيل / آخر ظهور</th>
                 <th>إجراءات</th>
               </tr>
             </thead>
             <tbody>
               <% if (!codesV2.length) { %>
-                <tr>
-                  <td colspan="7" class="muted">لا توجد أكواد لتطبيق Farzon بعد. أنشئ كوداً من النموذج أعلاه.</td>
-                </tr>
+                <tr><td colspan="7" class="muted">لا توجد أكواد عادية لتطبيق Farzon بعد.</td></tr>
               <% } %>
               <% codesV2.forEach((item) => { %>
                 <tr>
                   <td><code><%= item.code %></code></td>
                   <td><%= item.clientNameText %></td>
                   <td>
-                    <%= item.expiresAtText %>
-                    <div class="muted"><%= item.durationLabel || '' %></div>
+                    <div><strong><%= item.remainingLabel %></strong></div>
+                    <div class="muted" style="font-size:12px;">الإصدار: <%= item.createdAtText %> | المدة: <%= item.durationDays %> يوم</div>
                   </td>
                   <td>
                     <% if (item.isBlocked) { %>
@@ -379,24 +251,23 @@
                       <span class="badge">غير مستخدم</span>
                     <% } %>
                   </td>
-                  <td><%= item.deviceId || '—' %></td>
-                  <td><%= item.lastSeenText %></td>
+                  <td><small><%= item.deviceId || '—' %></small></td>
+                  <td>
+                    <div style="font-size:12px;">تفعيل: <%= item.activatedAtText %></div>
+                    <div class="muted" style="font-size:11px;">ظهور: <%= item.lastSeenText %></div>
+                  </td>
                   <td class="actions">
+                    <form method="post" action="/admin/codes/<%= item._id %>/extend" class="inline-edit-form">
+                      <input type="number" name="days" min="1" max="3650" value="30" required title="تمديد بالأيام دون فك ربط الجهاز" />
+                      <button type="submit" class="ghost">+تمديد</button>
+                    </form>
                     <% if (item.isBlocked) { %>
-                      <form method="post" action="/admin/codes/<%= item._id %>/unblock">
-                        <button type="submit" class="ghost">إلغاء الحظر</button>
-                      </form>
+                      <form method="post" action="/admin/codes/<%= item._id %>/unblock"><button type="submit" class="ghost">إلغاء الحظر</button></form>
                     <% } else { %>
-                      <form method="post" action="/admin/codes/<%= item._id %>/block">
-                        <button type="submit" class="danger">حظر / تعطيل</button>
-                      </form>
+                      <form method="post" action="/admin/codes/<%= item._id %>/block"><button type="submit" class="danger">حظر</button></form>
                     <% } %>
-                    <form method="post" action="/admin/codes/<%= item._id %>/force-logout">
-                      <button type="submit">طرد الجهاز</button>
-                    </form>
-                    <form method="post" action="/admin/codes/<%= item._id %>/delete" onsubmit="return confirm('هل أنت متأكد من حذف هذا الكود نهائياً؟');">
-                      <button type="submit" class="ghost">حذف</button>
-                    </form>
+                    <form method="post" action="/admin/codes/<%= item._id %>/force-logout"><button type="submit">طرد الجهاز</button></form>
+                    <form method="post" action="/admin/codes/<%= item._id %>/delete" onsubmit="return confirm('هل أنت متأكد من حذف هذا الكود نهائياً؟');"><button type="submit" class="ghost">حذف</button></form>
                   </td>
                 </tr>
               <% }) %>
@@ -406,97 +277,128 @@
       </section>
     </div>
 
-    <!-- PANEL 3: SUB-ADMINS MANAGEMENT (SUPER ADMIN ONLY) -->
-    <% if (isSuperAdmin) { %>
-    <div id="tab-panel-admins" class="tab-panel <%= activeTab === 'ADMINS' ? 'active' : '' %>">
+    <!-- =================================================================== -->
+    <!-- TAB 3: MANAGERS & THEIR USERS (Super Admin Central Control ONLY)    -->
+    <!-- =================================================================== -->
+    <div id="tab-panel-managers" class="tab-panel <%= activeTab === 'MANAGERS' ? 'active' : '' %>">
       <section class="panel-header">
-        <div class="panel-tag tag-purple">👥 إدارة الأدمنز الفرعيين</div>
+        <div class="panel-tag tag-purple">👥 إدارة المديرين ومجموعات المستخدمين (سوبر أدمن فقط)</div>
         <p class="panel-desc">
-          أنشئ حسابات للأدمنز الفرعيين وحدد الحصة القصوى لكل أدمن لإصدار أكواد Farzon ومتابعة نشاطهم.
+          السوبر أدمن وحده يُنشئ مجموعات المديرين ويصدر كود المدير وأكواد مستخدميه بمدد صلاحية مستقلة. يستخدم المدير تطبيق <strong>10fraz</strong> لرفع وحذف ملفات مجموعته فقط دون دخول لوحة التحكم.
         </p>
       </section>
 
-      <!-- Create Sub-Admin Form -->
-      <section class="card">
-        <h2>إنشاء حساب أدمن فرعي جديد (Sub-Admin)</h2>
-        <form method="post" action="/admin/sub-admins" class="create-form" style="grid-template-columns: 1fr 1fr 1fr auto;">
+      <section class="stats">
+        <article><strong><%= managerStats.totalManagers %></strong><span>إجمالي المديرين</span></article>
+        <article><strong><%= managerStats.activeManagers %></strong><span>مجموعات نشطة</span></article>
+        <article><strong><%= managerStats.totalManagerUsers %></strong><span>إجمالي أكواد المستخدمين</span></article>
+        <article><strong><%= managerStats.totalFiles %></strong><span>ملفات مرفوعة على السيرفر</span></article>
+      </section>
+
+      <!-- Create New Manager + Manager Code + Optional Initial Batch -->
+      <section class="card" style="border-color: rgba(139, 92, 246, 0.45);">
+        <h2>إنشاء مدير جديد ومجموعة مستقلة</h2>
+        <form method="post" action="/admin/managers" class="manager-create-grid">
           <label>
-            اسم المستخدم
-            <input type="text" name="username" placeholder="مثال: admin_alex" required autocomplete="off" />
+            اسم المدير أو المجموعة *
+            <input type="text" name="name" required maxlength="255" placeholder="مثال: المدير أحمد - مجموعة الشمال" />
           </label>
           <label>
-            كلمة المرور
-            <input type="password" name="password" placeholder="6 أحرف على الأقل" required minlength="6" />
+            الحد الأقصى للمستخدمين (الحصة) *
+            <input type="number" name="max_users" min="0" max="100000" value="10" required />
           </label>
           <label>
-            حصة الأكواد المسموحة
-            <input type="number" name="max_codes_quota" min="1" value="50" required />
+            مدة كود المدير (بالأيام) *
+            <input type="number" name="manager_duration_days" min="1" max="3650" value="365" required />
           </label>
-          <button type="submit" class="btn-purple">إنشاء حساب الأدمن</button>
+          <label>
+            إصدار أكواد مستخدمين الآن (اختياري)
+            <input type="number" name="initial_users_count" min="0" max="500" value="0" />
+          </label>
+          <label>
+            مدة أكواد المستخدمين الموحدة (بالأيام)
+            <input type="number" name="users_duration_days" min="1" max="3650" value="30" />
+          </label>
+          <label>
+            أو مدد مخصصة لكل كود (اختياري: 30, 90, 180)
+            <input type="text" name="custom_user_durations" placeholder="اتركه فارغاً للمدة الموحدة" />
+          </label>
+          <div style="grid-column: 1 / -1; display:flex; justify-content:flex-end;">
+            <button type="submit" class="btn-purple">✨ إنشاء المدير وإصدار كوده</button>
+          </div>
         </form>
       </section>
 
-      <!-- Sub-Admins Table -->
+      <!-- Managers Overview Table -->
       <section class="card">
-        <h2>قائمة الأدمنز الفرعيين والحصص</h2>
+        <h2>قائمة جميع المديرين وحصصهم</h2>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>اسم المستخدم</th>
-                <th>الحالة</th>
-                <th>الحصة الكلية</th>
-                <th>الأكواد المنشأة</th>
-                <th>المتبقي</th>
-                <th>تاريخ الإنشاء</th>
-                <th>إجراءات الحساب والحصة</th>
+                <th>المدير / المجموعة</th>
+                <th>كود المدير وصلاحيته</th>
+                <th>حالة المجموعة</th>
+                <th>الحصة (المُصدر / الأقصى / المتبقي)</th>
+                <th>ملفات المجموعة</th>
+                <th>إجراءات</th>
               </tr>
             </thead>
             <tbody>
-              <% if (!subAdmins.length) { %>
-                <tr>
-                  <td colspan="7" class="muted" style="text-align:center; padding:18px;">
-                    لا يوجد أدمنز فرعيين مسجلين حتى الآن. أنشئ حساباً من النموذج أعلاه.
-                  </td>
-                </tr>
+              <% if (!managers.length) { %>
+                <tr><td colspan="6" class="muted" style="text-align:center; padding:18px;">لا توجد مجموعات مديرين بعد. أنشئ أول مدير من النموذج أعلاه.</td></tr>
               <% } %>
-              <% subAdmins.forEach((sa) => { %>
-                <tr>
+              <% managers.forEach((mgr) => { %>
+                <tr class="<%= selectedManager && String(selectedManager.id) === String(mgr.id) ? 'row-selected' : '' %>">
                   <td>
-                    <strong><%= sa.username %></strong>
+                    <strong><%= mgr.name %></strong>
+                    <div class="muted" style="font-size:11px;">أُنشئ: <%= mgr.createdAtText %></div>
                   </td>
                   <td>
-                    <% if (sa.isActive) { %>
-                      <span class="badge badge-green">نشط</span>
+                    <% if (mgr.managerCode) { %>
+                      <div><code><%= mgr.managerCode.code %></code></div>
+                      <div style="font-size:12px; margin-top:4px;">
+                        <% if (mgr.managerCode.isBlocked) { %>
+                          <span class="badge badge-red">كود المدير محظور</span>
+                        <% } else if (mgr.managerCode.expired) { %>
+                          <span class="badge badge-amber">كود المدير منتهي</span>
+                        <% } else if (mgr.managerCode.isActivated) { %>
+                          <span class="badge badge-green">مفعل</span>
+                        <% } else { %>
+                          <span class="badge">غير مستخدم</span>
+                        <% } %>
+                        <span class="muted"><%= mgr.managerCode.remainingLabel %></span>
+                      </div>
                     <% } else { %>
-                      <span class="badge badge-red">معطل / موقوف</span>
+                      <span class="badge badge-amber">بدون كود مدير</span>
                     <% } %>
                   </td>
                   <td>
-                    <!-- Inline Quota Edit Form -->
-                    <form method="post" action="/admin/sub-admins/<%= sa.id %>/quota" class="inline-edit-form">
-                      <input type="number" name="max_codes_quota" value="<%= sa.maxCodesQuota %>" min="0" required />
-                      <button type="submit" class="ghost" title="حفظ الحصة">تعديل</button>
-                    </form>
+                    <% if (mgr.isActive) { %>
+                      <span class="badge badge-green">نشطة</span>
+                    <% } else { %>
+                      <span class="badge badge-red">معطلة (الملفات محجوبة)</span>
+                    <% } %>
                   </td>
-                  <td><span class="badge badge-purple"><%= sa.codesCount %> كود</span></td>
                   <td>
-                    <span class="badge <%= sa.remainingQuota > 0 ? 'badge-green' : 'badge-red' %>">
-                      <%= sa.remainingQuota %> كود
-                    </span>
-                  </td>
-                  <td><%= sa.createdAtText %></td>
-                  <td class="actions">
-                    <form method="post" action="/admin/sub-admins/<%= sa.id %>/toggle">
-                      <button type="submit" class="<%= sa.isActive ? 'danger' : 'btn-green' %>">
-                        <%= sa.isActive ? 'تعطيل الحساب' : 'تفعيل الحساب' %>
-                      </button>
+                    <div style="margin-bottom:6px;">
+                      <span class="badge badge-purple"><%= mgr.issuedUsersCount %> / <%= mgr.maxUsers %></span>
+                      <span class="badge <%= mgr.remainingQuota > 0 ? 'badge-green' : 'badge-red' %>">متبقي: <%= mgr.remainingQuota %></span>
+                    </div>
+                    <form method="post" action="/admin/managers/<%= mgr.id %>/quota" class="inline-edit-form">
+                      <input type="number" name="max_users" value="<%= mgr.maxUsers %>" min="<%= mgr.issuedUsersCount %>" max="100000" required title="الحد الأدنى هو عدد الأكواد الصادرة حالياً" />
+                      <button type="submit" class="ghost">تحديث الحصة</button>
                     </form>
-
-                    <!-- Quick Password Reset -->
-                    <form method="post" action="/admin/sub-admins/<%= sa.id %>/reset-password" class="inline-edit-form" onsubmit="return confirm('هل ترغب بتعيين كلمة المرور الجديدة لهذا الأدمن؟');">
-                      <input type="password" name="new_password" placeholder="كلمة سر جديدة" minlength="6" required style="width:110px;" />
-                      <button type="submit" class="ghost">تغيير</button>
+                  </td>
+                  <td>
+                    <span class="badge badge-green"><%= mgr.filesCount %> ملف</span>
+                  </td>
+                  <td class="actions">
+                    <a href="/admin?tab=MANAGERS&manager=<%= mgr.id %>" class="btn-link-manage">إدارة المجموعة والأكواد</a>
+                    <form method="post" action="/admin/managers/<%= mgr.id %>/toggle">
+                      <button type="submit" class="<%= mgr.isActive ? 'danger' : 'btn-green' %>">
+                        <%= mgr.isActive ? 'تعطيل المجموعة' : 'تفعيل المجموعة' %>
+                      </button>
                     </form>
                   </td>
                 </tr>
@@ -505,20 +407,222 @@
           </table>
         </div>
       </section>
-    </div>
-    <% } %>
 
+      <!-- Selected Manager Group Detailed Panel -->
+      <% if (selectedManager) { %>
+        <section class="card manager-detail-panel">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+            <div>
+              <h2 style="margin-bottom:4px; color:#c4b5fd;">📂 تفاصيل مجموعة: <%= selectedManager.name %></h2>
+              <p class="muted" style="font-size:13px;">
+                الحصة المسموحة: <strong><%= selectedManager.maxUsers %></strong> |
+                المُصدر: <strong><%= selectedManager.issuedUsersCount %></strong> |
+                المتبقي: <strong><%= selectedManager.remainingQuota %></strong> |
+                الملفات النشطة: <strong><%= selectedManager.filesCount %></strong>
+              </p>
+            </div>
+            <div>
+              <% if (selectedManager.isActive) { %>
+                <span class="badge badge-green" style="font-size:13px; padding:6px 12px;">المجموعة نشطة</span>
+              <% } else { %>
+                <span class="badge badge-red" style="font-size:13px; padding:6px 12px;">المجموعة معطلة (manager_group_disabled)</span>
+              <% } %>
+            </div>
+          </div>
+
+          <!-- Manager's Own Code Control Card -->
+          <div class="subcard">
+            <h3 style="margin:0 0 10px;">🔑 كود المدير (يُستخدم داخل تطبيق 10fraz لرفع وحذف ملفات المجموعة)</h3>
+            <% if (selectedManager.managerCode) { const mc = selectedManager.managerCode; %>
+              <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:center; justify-content:space-between;">
+                <div>
+                  <div style="font-size:16px; margin-bottom:4px;">
+                    <code><%= mc.code %></code>
+                    <% if (mc.isBlocked) { %>
+                      <span class="badge badge-red">محظور</span>
+                    <% } else if (mc.expired) { %>
+                      <span class="badge badge-amber">منتهي (manager_license_expired)</span>
+                    <% } else if (mc.isActivated) { %>
+                      <span class="badge badge-green">مفعل</span>
+                    <% } else { %>
+                      <span class="badge">غير مستخدم</span>
+                    <% } %>
+                  </div>
+                  <div class="muted" style="font-size:13px;">
+                    <strong><%= mc.remainingLabel %></strong> — المدة: <%= mc.durationDays %> يوم | الجهاز: <%= mc.deviceId || 'غير مرتبط بعد' %> | آخر ظهور: <%= mc.lastSeenText %>
+                  </div>
+                </div>
+                <div class="actions">
+                  <form method="post" action="/admin/codes/<%= mc._id %>/extend" class="inline-edit-form">
+                    <input type="number" name="days" min="1" max="3650" value="30" required />
+                    <button type="submit" class="btn-green">+تمديد كود المدير</button>
+                  </form>
+                  <% if (mc.isBlocked) { %>
+                    <form method="post" action="/admin/codes/<%= mc._id %>/unblock"><button type="submit" class="ghost">إلغاء حظر المدير</button></form>
+                  <% } else { %>
+                    <form method="post" action="/admin/codes/<%= mc._id %>/block"><button type="submit" class="danger">حظر كود المدير</button></form>
+                  <% } %>
+                  <form method="post" action="/admin/codes/<%= mc._id %>/force-logout"><button type="submit">طرد جهاز المدير</button></form>
+                </div>
+              </div>
+            <% } else { %>
+              <form method="post" action="/admin/managers/<%= selectedManager.id %>/manager-code" class="inline-edit-form">
+                <input type="number" name="manager_duration_days" min="1" max="3650" value="365" required />
+                <button type="submit" class="btn-purple">إصدار كود مدير جديد</button>
+              </form>
+            <% } %>
+          </div>
+
+          <!-- Issue User Codes for Selected Manager (Super Admin Only, Quota Enforced) -->
+          <div class="subcard" style="margin-top:14px;">
+            <h3 style="margin:0 0 10px;">🎫 إصدار أكواد مستخدمين تابعين لـ (<%= selectedManager.name %>) — المتبقي: <%= selectedManager.remainingQuota %></h3>
+            <% if (selectedManager.remainingQuota <= 0) { %>
+              <div class="alert alert-error">
+                تم استنفاد حصة هذا المدير بالكامل (<%= selectedManager.issuedUsersCount %> / <%= selectedManager.maxUsers %>). قم بزيادة الحصة أعلاه لإصدار أكواد إضافية.
+              </div>
+            <% } else { %>
+              <form method="post" action="/admin/managers/<%= selectedManager.id %>/codes" class="manager-create-grid">
+                <label>
+                  اسم العميل / بادئة (اختياري)
+                  <input type="text" name="client_name" maxlength="200" placeholder="مثال: مندوب" />
+                </label>
+                <label>
+                  عدد الأكواد (المتاح: 1 إلى <%= selectedManager.remainingQuota %>)
+                  <input type="number" name="count" min="1" max="<%= selectedManager.remainingQuota %>" value="1" required />
+                </label>
+                <label>
+                  مدة الصلاحية المستقلة (بالأيام)
+                  <input type="number" name="duration_days" min="1" max="3650" value="30" required />
+                </label>
+                <label style="grid-column: span 2;">
+                  أو مدد مختلفة لكل كود مفصولة بفواصل (اختياري — مثال: 30, 90, 180)
+                  <input type="text" name="custom_durations" placeholder="عند التعبئة يُصدر كود لكل رقم بمدته المستقلة" />
+                </label>
+                <div style="display:flex; align-items:end;">
+                  <button type="submit" class="btn-green" style="width:100%;">إصدار أكواد المستخدمين</button>
+                </div>
+              </form>
+            <% } %>
+          </div>
+
+          <!-- Manager's User Codes Table -->
+          <div style="margin-top:18px;">
+            <h3>📋 أكواد المستخدمين التابعين لـ (<%= selectedManager.name %>) — (<%= selectedManager.issuedUsersCount %>)</h3>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>الكود</th>
+                    <th>المستخدم / المدير التابع له</th>
+                    <th>المدة والصلاحية المستقلة</th>
+                    <th>الحالة</th>
+                    <th>الجهاز</th>
+                    <th>تفعيل / آخر ظهور</th>
+                    <th>إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% if (!selectedManager.userCodes.length) { %>
+                    <tr><td colspan="7" class="muted">لم يتم إصدار أكواد مستخدمين لهذه المجموعة بعد.</td></tr>
+                  <% } %>
+                  <% selectedManager.userCodes.forEach((item) => { %>
+                    <tr>
+                      <td><code><%= item.code %></code></td>
+                      <td>
+                        <div><%= item.clientNameText %></div>
+                        <div class="muted" style="font-size:11px;">المدير: <%= selectedManager.name %></div>
+                      </td>
+                      <td>
+                        <div><strong><%= item.remainingLabel %></strong></div>
+                        <div class="muted" style="font-size:11px;">الإصدار: <%= item.createdAtText %> | المدة: <%= item.durationDays %> يوم</div>
+                      </td>
+                      <td>
+                        <% if (item.isBlocked) { %>
+                          <span class="badge badge-red">محظور</span>
+                        <% } else if (item.expired) { %>
+                          <span class="badge badge-amber">منتهي</span>
+                        <% } else if (item.isActivated) { %>
+                          <span class="badge badge-green">مفعل</span>
+                        <% } else { %>
+                          <span class="badge">غير مستخدم</span>
+                        <% } %>
+                      </td>
+                      <td><small><%= item.deviceId || '—' %></small></td>
+                      <td>
+                        <div style="font-size:11px;">تفعيل: <%= item.activatedAtText %></div>
+                        <div class="muted" style="font-size:11px;">ظهور: <%= item.lastSeenText %></div>
+                      </td>
+                      <td class="actions">
+                        <form method="post" action="/admin/codes/<%= item._id %>/extend" class="inline-edit-form">
+                          <input type="number" name="days" min="1" max="3650" value="30" required title="تمديد بالأيام دون فك ربط الجهاز" />
+                          <button type="submit" class="ghost">+تمديد</button>
+                        </form>
+                        <% if (item.isBlocked) { %>
+                          <form method="post" action="/admin/codes/<%= item._id %>/unblock"><button type="submit" class="ghost">إلغاء الحظر</button></form>
+                        <% } else { %>
+                          <form method="post" action="/admin/codes/<%= item._id %>/block"><button type="submit" class="danger">حظر</button></form>
+                        <% } %>
+                        <form method="post" action="/admin/codes/<%= item._id %>/force-logout"><button type="submit">طرد الجهاز</button></form>
+                        <form method="post" action="/admin/codes/<%= item._id %>/delete" onsubmit="return confirm('هل أنت متأكد من حذف كود المستخدم نهائياً؟');"><button type="submit" class="ghost">حذف</button></form>
+                      </td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Manager's Uploaded Files (Read/Monitor + Emergency Delete by Super Admin) -->
+          <div style="margin-top:18px;">
+            <h3>📁 الملفات المرفوعة من تطبيق المدير (<%= selectedManager.filesCount %>)</h3>
+            <p class="muted" style="font-size:12px; margin-bottom:10px;">
+              يرفع المدير هذه الملفات مباشرة من تطبيق <strong>10fraz</strong> بكود المدير، وتُحفظ مشفرة/خاصة في Supabase Storage ولا يصل إليها إلا مستخدمو هذه المجموعة فقط.
+            </p>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>اسم الملف</th>
+                    <th>عدد السجلات</th>
+                    <th>الحجم</th>
+                    <th>تاريخ الرفع</th>
+                    <th>إجراء إداري</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% if (!selectedManager.files.length) { %>
+                    <tr><td colspan="5" class="muted">لم يرفع هذا المدير أي ملفات من تطبيقه بعد.</td></tr>
+                  <% } %>
+                  <% selectedManager.files.forEach((f) => { %>
+                    <tr>
+                      <td><strong>📊 <%= f.fileName %></strong></td>
+                      <td><span class="badge badge-green"><%= f.recordsCount.toLocaleString() %> سجل</span></td>
+                      <td><%= f.sizeKb %> KB</td>
+                      <td><%= f.createdAtText %></td>
+                      <td>
+                        <form method="post" action="/admin/managers/<%= selectedManager.id %>/files/<%= f.id %>/delete" onsubmit="return confirm('حذف هذا الملف من السيرفر ومن أجهزة مستخدمي المجموعة؟');">
+                          <button type="submit" class="danger">حذف من السيرفر</button>
+                        </form>
+                      </td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      <% } %>
+    </div>
   </main>
 
   <script>
-    // Seamless instant tab switching with URL update
     document.querySelectorAll('.app-tab').forEach(function(tabLink) {
       tabLink.addEventListener('click', function(e) {
         e.preventDefault();
         var targetPanelId = tabLink.getAttribute('data-target');
         var newTabId = 'FARZ_V2';
         if (targetPanelId === 'tab-panel-v1') newTabId = 'FARZ_V1';
-        if (targetPanelId === 'tab-panel-admins') newTabId = 'ADMINS';
+        if (targetPanelId === 'tab-panel-managers') newTabId = 'MANAGERS';
 
         document.querySelectorAll('.app-tab').forEach(function(t) { t.classList.remove('active'); });
         document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
@@ -531,6 +635,9 @@
 
         var url = new URL(window.location);
         url.searchParams.set('tab', newTabId);
+        if (newTabId !== 'MANAGERS') {
+          url.searchParams.delete('manager');
+        }
         window.history.replaceState({}, '', url);
       });
     });

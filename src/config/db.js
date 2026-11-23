@@ -12,10 +12,14 @@ function getSupabaseConfig() {
     throw new Error("SUPABASE_URL is missing. Set it in .env");
   }
   if (!supabaseKey) {
-    throw new Error("SUPABASE_ANON_KEY is missing. Set it in .env");
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY is missing. Set it in .env");
   }
 
-  return { supabaseUrl, supabaseKey };
+  return {
+    supabaseUrl,
+    supabaseKey,
+    usingServiceRole: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY)
+  };
 }
 
 function createSupabaseClient() {
@@ -43,6 +47,14 @@ function getSupabase() {
   return supabaseClient;
 }
 
+/**
+ * Allows automated tests to inject an isolated in-memory Supabase/Storage client
+ * without touching production databases or credentials.
+ */
+function setSupabaseClientForTest(client) {
+  supabaseClient = client;
+}
+
 async function throwIfError(error, fallbackMessage) {
   if (!error) {
     return;
@@ -54,7 +66,9 @@ async function throwIfError(error, fallbackMessage) {
 }
 
 module.exports = {
+  getSupabaseConfig,
   connectDatabase,
   getSupabase,
+  setSupabaseClientForTest,
   throwIfError
 };

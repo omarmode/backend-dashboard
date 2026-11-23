@@ -381,8 +381,43 @@ code { background: #100a24; padding: 4px 8px; border-radius: 8px; }
   font-size: 12px;
 }
 
+.manager-create-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  align-items: end;
+}
+.manager-detail-panel {
+  border: 1px solid rgba(139, 92, 246, 0.5);
+  background: rgba(22, 16, 45, 0.96);
+}
+.subcard {
+  background: rgba(15, 11, 34, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+.row-selected {
+  background: rgba(139, 92, 246, 0.12);
+}
+.btn-link-manage {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(139, 92, 246, 0.2);
+  border: 1px solid rgba(139, 92, 246, 0.45);
+  color: #e9d5ff;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 700;
+}
+.btn-link-manage:hover {
+  background: rgba(139, 92, 246, 0.35);
+}
+
 @media (max-width: 800px) {
-  .app-tabs-nav { grid-template-columns: 1fr; }
-  .create-form, .stats, .topbar { grid-template-columns: 1fr; display: grid; }
+  .app-tabs-nav { grid-template-columns: 1fr !important; }
+  .create-form, .manager-create-grid, .stats, .topbar { grid-template-columns: 1fr; display: grid; }
   .topbar form { display: flex; justify-content: space-between; align-items: center; }
 }

@@ -10,8 +10,14 @@ services:
         value: production
       - key: SUPABASE_URL
         sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
       - key: SUPABASE_ANON_KEY
         sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        value: manager-files
+      - key: MAX_MANAGER_FILE_MB
+        value: "25"
       - key: SESSION_SECRET
         generateValue: true
       - key: ADMIN_USERNAME

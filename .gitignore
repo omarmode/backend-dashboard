@@ -1,7 +1,14 @@
 node_modules/
 .env
+.env.local
 .DS_Store
 npm-debug.log*
 yarn-error.log*
 .idea/
 .vscode/
+uploads/
+*.jks
+*.keystore
+*.p12
+*.bak
+__BACKUP*

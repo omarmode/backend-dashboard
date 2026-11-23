@@ -1,47 +1,17 @@
 const express = require("express");
-const crypto = require("crypto");
-const path = require("path");
-const fs = require("fs");
-const multer = require("multer");
-const XLSX = require("xlsx");
 const Admin = require("../models/Admin");
+const Manager = require("../models/Manager");
+const ManagerFile = require("../models/ManagerFile");
 const ActivationCode = require("../models/ActivationCode");
-const AdminFile = require("../models/AdminFile");
 const { requireAdmin, requireSuperAdmin } = require("../middleware/auth");
-const { generateActivationCode, computeExpiry, isFarzonApp } = require("../utils/codes");
+const {
+  generateActivationCode,
+  computeExpiry,
+  computeRemainingInfo,
+  isFarzonApp
+} = require("../utils/codes");
 
 const router = express.Router();
-
-// Multer storage configuration for Admin Excel files
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, "../../uploads/admin_files");
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
-    cb(null, `admin_${req.admin.id}_${uniqueSuffix}${ext}`);
-  }
-});
-
-const upload = multer({
-  storage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max
-  fileFilter: function (req, file, cb) {
-    // Keep the server allow-list aligned with the Android Excel parser.
-    const allowedExts = [".xlsx", ".xls", ".xlsm", ".xltx", ".xltm", ".xlsb", ".csv"];
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (allowedExts.includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error("يُسمح فقط برفع ملفات Excel بصيغ (.xlsx, .xls, .xlsm, .xltx, .xltm, .xlsb, .csv)"));
-    }
-  }
-});
 
 function flash(req, type, text) {
   req.session.flash = { type, text };
@@ -53,13 +23,102 @@ function consumeFlash(req) {
   return current;
 }
 
+async function generateUniqueCode(appId, reservedSet = new Set()) {
+  let code = generateActivationCode(appId);
+  let attempts = 0;
+  while (reservedSet.has(code) || (await ActivationCode.existsByCode(code))) {
+    code = generateActivationCode(appId);
+    attempts += 1;
+    if (attempts > 50) {
+      throw new Error("تعذر توليد كود فريد، حاول مرة أخرى");
+    }
+  }
+  reservedSet.add(code);
+  return code;
+}
+
+function formatCodeForView(item, now = new Date(), managerNameMap = {}) {
+  const rem = computeRemainingInfo(item.expiresAt, now);
+  return {
+    ...item,
+    appId: item.appId || "FARZ_V1",
+    expired: rem.expired,
+    remainingDays: rem.remainingDays,
+    lessThanOneDay: rem.lessThanOneDay,
+    remainingLabel: rem.labelAr,
+    expiryDateFormatted: rem.expiryDateFormatted,
+    expiresAtText: item.expiresAt ? item.expiresAt.toLocaleString("ar-EG") : "—",
+    createdAtText: item.createdAt ? item.createdAt.toLocaleString("ar-EG") : "—",
+    activatedAtText: item.activatedAt ? item.activatedAt.toLocaleString("ar-EG") : "—",
+    lastSeenText: item.lastSeenAt ? item.lastSeenAt.toLocaleString("ar-EG") : "—",
+    clientNameText: item.clientName ? item.clientName : "—",
+    managerNameText: item.managerId ? (managerNameMap[item.managerId] || "—") : "—"
+  };
+}
+
+function calcStats(list) {
+  return {
+    total: list.length,
+    active: list.filter((item) => item.isActivated && !item.isBlocked && !item.expired).length,
+    blocked: list.filter((item) => item.isBlocked).length,
+    expired: list.filter((item) => item.expired).length
+  };
+}
+
+function redirectBackForCode(record, fallbackTab = "FARZ_V2") {
+  if (record && (record.codeRole === "manager" || record.codeRole === "manager_user") && record.managerId) {
+    return `/admin?tab=MANAGERS&manager=${encodeURIComponent(record.managerId)}`;
+  }
+  if (record) {
+    return `/admin?tab=${isFarzonApp(record.appId) ? "FARZ_V2" : "FARZ_V1"}`;
+  }
+  return `/admin?tab=${fallbackTab}`;
+}
+
+/**
+ * Parses optional custom per-code durations (e.g. "30, 90, 180") or uniform days.
+ */
+function parseBatchDurations(count, uniformDays, customDurationsRaw) {
+  const customStr = String(customDurationsRaw || "").trim();
+  if (customStr) {
+    const parts = customStr
+      .split(/[\s,،;|]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const parsed = parts.map((p) => Number(p));
+    if (parsed.some((n) => !Number.isInteger(n) || n <= 0 || n > 3650)) {
+      throw new Error("قائمة المدد المخصصة يجب أن تحتوي على أرقام أيام صحيحة أكبر من 0 (مثال: 30, 90, 180)");
+    }
+    return parsed;
+  }
+
+  const cnt = Number(count);
+  const days = Number(uniformDays);
+  if (!Number.isInteger(cnt) || cnt <= 0 || cnt > 500) {
+    throw new Error("عدد الأكواد يجب أن يكون رقماً صحيحاً بين 1 و 500");
+  }
+  if (!Number.isInteger(days) || days <= 0 || days > 3650) {
+    throw new Error("مدة الصلاحية بالأيام يجب أن تكون رقماً صحيحاً بين 1 و 3650");
+  }
+  return Array(cnt).fill(days);
+}
+
+// ============================================================================
+// Authentication (Super Admin ONLY)
+// ============================================================================
 router.get("/login", (req, res) => {
   if (req.session.adminId) {
     return res.redirect("/admin");
   }
+  let error = consumeFlash(req);
+  if (!error && req.query.error === "super_admin_only") {
+    error = { type: "error", text: "لوحة التحكم مخصصة للسوبر أدمن فقط. يستخدم المديرون التطبيق مباشرة بكود المدير." };
+  } else if (!error && req.query.error === "account_deactivated") {
+    error = { type: "error", text: "هذا الحساب معطل حالياً." };
+  }
   res.render("login", {
     title: "تسجيل الدخول",
-    error: consumeFlash(req),
+    error,
     username: ""
   });
 });
@@ -76,7 +135,12 @@ router.post("/login", async (req, res) => {
     }
 
     if (admin.isActive === false) {
-      flash(req, "error", "هذا الحساب معطل حالياً. يرجى التواصل مع السوبر أدمن.");
+      flash(req, "error", "هذا الحساب معطل حالياً.");
+      return res.redirect("/admin/login");
+    }
+
+    if (admin.role !== "super_admin") {
+      flash(req, "error", "لوحة التحكم مخصصة للسوبر أدمن فقط. المديرون لا يدخلون لوحة التحكم.");
       return res.redirect("/admin/login");
     }
 
@@ -84,7 +148,7 @@ router.post("/login", async (req, res) => {
     req.session.adminUsername = admin.username;
     return res.redirect("/admin");
   } catch (error) {
-    console.error("Admin login failed:", error);
+    console.error("Admin login failed:", error.message);
     flash(req, "error", "تعذر تسجيل الدخول حالياً");
     return res.redirect("/admin/login");
   }
@@ -96,371 +160,477 @@ router.post("/logout", (req, res) => {
   });
 });
 
-router.get("/", requireAdmin, async (req, res) => {
-  const isSuperAdmin = req.admin.role === "super_admin";
-
-  let activeTab = "FARZ_V2";
-  if (isSuperAdmin) {
+// ============================================================================
+// Main Super Admin Dashboard (3 Tabs: FARZ_V1, FARZ_V2 Regular, MANAGERS)
+// ============================================================================
+router.get("/", requireAdmin, requireSuperAdmin, async (req, res) => {
+  try {
+    const now = new Date();
+    let activeTab = "FARZ_V2";
     if (req.query.tab === "FARZ_V1") {
       activeTab = "FARZ_V1";
-    } else if (req.query.tab === "ADMINS") {
-      activeTab = "ADMINS";
-    } else {
-      activeTab = "FARZ_V2";
+    } else if (req.query.tab === "MANAGERS") {
+      activeTab = "MANAGERS";
     }
-  }
 
-  // Load codes based on admin role
-  let codes = [];
-  if (isSuperAdmin) {
-    codes = await ActivationCode.listAll();
-  } else {
-    codes = await ActivationCode.listAll("FARZ_V2", req.admin.id);
-  }
+    const [allCodes, rawManagers, allActiveManagerFiles] = await Promise.all([
+      ActivationCode.listAll(),
+      Manager.listAll(),
+      ManagerFile.listAllActive().catch(() => [])
+    ]);
 
-  const mapped = codes.map((item) => ({
-    ...item,
-    appId: item.appId || "FARZ_V1",
-    expired: item.isExpired(),
-    expiresAtText: item.expiresAt ? item.expiresAt.toLocaleString("ar-EG") : "—",
-    createdAtText: item.createdAt ? item.createdAt.toLocaleString("ar-EG") : "—",
-    lastSeenText: item.lastSeenAt ? item.lastSeenAt.toLocaleString("ar-EG") : "—",
-    clientNameText: item.clientName ? item.clientName : "—"
-  }));
+    const managerNameMap = {};
+    for (const m of rawManagers) {
+      managerNameMap[m.id] = m.name;
+    }
 
-  const codesV1 = isSuperAdmin ? mapped.filter((item) => !isFarzonApp(item.appId)) : [];
-  const codesV2 = mapped.filter((item) => isFarzonApp(item.appId));
+    const mappedCodes = allCodes.map((c) => formatCodeForView(c, now, managerNameMap));
 
-  function calcStats(list) {
-    return {
-      total: list.length,
-      active: list.filter((item) => item.isActivated && !item.isBlocked && !item.expired).length,
-      blocked: list.filter((item) => item.isBlocked).length,
-      expired: list.filter((item) => item.expired).length
-    };
-  }
+    // Tab 1: FARZ_V1 codes only
+    const codesV1 = mappedCodes.filter((item) => !isFarzonApp(item.appId));
 
-  const statsV1 = calcStats(codesV1);
-  const statsV2 = calcStats(codesV2);
-
-  // Load Sub-Admins list for Super Admin if tab is ADMINS
-  let subAdmins = [];
-  if (isSuperAdmin && activeTab === "ADMINS") {
-    const rawSubAdmins = await Admin.listSubAdmins();
-    subAdmins = await Promise.all(
-      rawSubAdmins.map(async (sa) => {
-        const count = await ActivationCode.countByAdmin(sa.id);
-        const quota = sa.maxCodesQuota || 0;
-        return {
-          ...sa,
-          codesCount: count,
-          remainingQuota: Math.max(0, quota - count),
-          createdAtText: sa.createdAt ? new Date(sa.createdAt).toLocaleString("ar-EG") : "—"
-        };
-      })
+    // Tab 2: FARZ_V2 regular users ONLY (strictly excludes manager & manager_user codes!)
+    const codesV2 = mappedCodes.filter(
+      (item) => isFarzonApp(item.appId) && item.codeRole === "regular" && !item.managerId
     );
+
+    const statsV1 = calcStats(codesV1);
+    const statsV2 = calcStats(codesV2);
+
+    // Tab 3: Build rich manager group summaries
+    const filesByManager = {};
+    for (const f of allActiveManagerFiles) {
+      const k = String(f.managerId);
+      if (!filesByManager[k]) filesByManager[k] = [];
+      filesByManager[k].push({
+        ...f,
+        sizeKb: Math.max(1, Math.round(f.fileSize / 1024)),
+        createdAtText: f.createdAt ? f.createdAt.toLocaleString("ar-EG") : "—"
+      });
+    }
+
+    const managers = rawManagers.map((m) => {
+      const managerCode = mappedCodes.find(
+        (c) => String(c.managerId) === String(m.id) && c.codeRole === "manager"
+      ) || null;
+      const userCodes = mappedCodes.filter(
+        (c) => String(c.managerId) === String(m.id) && c.codeRole === "manager_user"
+      );
+      const mFiles = filesByManager[String(m.id)] || [];
+      return {
+        ...m,
+        managerCode,
+        userCodes,
+        issuedUsersCount: userCodes.length,
+        remainingQuota: Math.max(0, m.maxUsers - userCodes.length),
+        activeUsersCount: userCodes.filter((u) => u.isActivated && !u.isBlocked && !u.expired).length,
+        files: mFiles,
+        filesCount: mFiles.length,
+        createdAtText: m.createdAt ? m.createdAt.toLocaleString("ar-EG") : "—"
+      };
+    });
+
+    const selectedManagerId = req.query.manager ? String(req.query.manager) : null;
+    const selectedManager =
+      (selectedManagerId && managers.find((m) => String(m.id) === selectedManagerId)) ||
+      managers[0] ||
+      null;
+
+    const managerStats = {
+      totalManagers: managers.length,
+      activeManagers: managers.filter((m) => m.isActive).length,
+      totalManagerUsers: managers.reduce((sum, m) => sum + m.issuedUsersCount, 0),
+      totalFiles: allActiveManagerFiles.length
+    };
+
+    res.render("dashboard", {
+      title: "مركز التحكم الرئيسي",
+      adminUsername: req.session.adminUsername,
+      currentAdmin: req.admin,
+      isSuperAdmin: true,
+      flash: consumeFlash(req),
+      activeTab,
+      codesV1,
+      codesV2,
+      statsV1,
+      statsV2,
+      managers,
+      selectedManager,
+      managerStats
+    });
+  } catch (error) {
+    console.error("Dashboard load failed:", error.message);
+    res.status(500).send(`تعذر تحميل لوحة التحكم: ${error.message}`);
   }
-
-  // Load Admin Files for current admin
-  const adminFilesRaw = await AdminFile.listByAdmin(req.admin.id);
-  const adminFiles = adminFilesRaw.map((f) => ({
-    ...f,
-    sizeKb: Math.round(f.fileSize / 1024),
-    createdAtText: f.createdAt ? f.createdAt.toLocaleString("ar-EG") : "—"
-  }));
-
-  // Calculate Sub-Admin quota stats
-  const subAdminQuota = {
-    max: req.admin.maxCodesQuota || 50,
-    used: codesV2.length,
-    remaining: Math.max(0, (req.admin.maxCodesQuota || 50) - codesV2.length)
-  };
-
-  res.render("dashboard", {
-    title: "لوحة التحكم",
-    adminUsername: req.session.adminUsername,
-    currentAdmin: req.admin,
-    isSuperAdmin,
-    flash: consumeFlash(req),
-    activeTab,
-    codesV1,
-    codesV2,
-    statsV1,
-    statsV2,
-    subAdmins,
-    adminFiles,
-    subAdminQuota,
-    codes: activeTab === "FARZ_V2" ? codesV2 : codesV1,
-    stats: activeTab === "FARZ_V2" ? statsV2 : statsV1
-  });
 });
 
-// Create activation code
-router.post("/codes", requireAdmin, async (req, res) => {
-  const isSuperAdmin = req.admin.role === "super_admin";
-  let appId = "FARZ_V2";
-
-  if (isSuperAdmin) {
-    appId = isFarzonApp(req.body.app_id) ? "FARZ_V2" : "FARZ_V1";
-  } else {
-    // Sub-Admin is strictly restricted to FARZ_V2
-    appId = "FARZ_V2";
-
-    // Enforce Sub-Admin quota check
-    const currentCount = await ActivationCode.countByAdmin(req.admin.id);
-    const maxQuota = req.admin.maxCodesQuota || 50;
-    if (currentCount >= maxQuota) {
-      flash(req, "error", `عفواً، لقد استنفدت الحد الأقصى المسموح لك من الأكواد (${maxQuota} كود). يرجى مراجعة السوبر أدمن.`);
-      return res.redirect("/admin?tab=FARZ_V2");
-    }
-  }
+// ============================================================================
+// Tab 1 & Tab 2: Create Regular Activation Code (Super Admin ONLY)
+// ============================================================================
+router.post("/codes", requireAdmin, requireSuperAdmin, async (req, res) => {
+  const appId = isFarzonApp(req.body.app_id) ? "FARZ_V2" : "FARZ_V1";
 
   try {
-    const { expiresAt, durationLabel } = computeExpiry(
+    const { expiresAt, durationDays, durationLabel } = computeExpiry(
       req.body.durationValue,
-      req.body.durationUnit
+      req.body.durationUnit || "days"
     );
 
-    let code = generateActivationCode(appId);
-    while (await ActivationCode.existsByCode(code)) {
-      code = generateActivationCode(appId);
-    }
+    const code = await generateUniqueCode(appId);
 
     await ActivationCode.createCode({
       code,
       expiresAt: expiresAt.toISOString(),
+      durationDays,
       durationLabel,
       clientName: String(req.body.client_name || "").trim(),
       appId,
+      codeRole: "regular",
+      managerId: null,
       createdByAdminId: req.admin.id
     });
 
-    const isFarzon = isFarzonApp(appId);
-    const appLabel = isFarzon ? "تطبيق فرزون (Farzon)" : "تطبيق فرز (Farz)";
-    flash(req, "success", `تم إنشاء الكود ${code} بنجاح لصالح ${appLabel}`);
+    const appLabel = isFarzonApp(appId) ? "تطبيق فرزون (Farzon - مستخدم عادي)" : "تطبيق فرز (Farz)";
+    flash(req, "success", `تم إنشاء الكود ${code} (${durationDays} يوم) بنجاح لصالح ${appLabel}`);
   } catch (error) {
-    console.error("Create code failed:", error);
+    console.error("Create code failed:", error.message);
     flash(req, "error", error.message || "تعذر إنشاء الكود");
   }
   return res.redirect(`/admin?tab=${appId}`);
 });
 
-// Helper to check code modification ownership
-async function canModifyCode(req, codeId) {
-  const record = await ActivationCode.findById(codeId);
-  if (!record) return null;
-  if (req.admin.role === "super_admin") return record;
-  if (String(record.createdByAdminId) === String(req.admin.id)) return record;
-  return null;
-}
-
-router.post("/codes/:id/block", requireAdmin, async (req, res) => {
-  const record = await canModifyCode(req, req.params.id);
+// ============================================================================
+// Shared Code Management Actions (Block / Unblock / Force Logout / Extend / Delete)
+// Super Admin ONLY
+// ============================================================================
+router.post("/codes/:id/block", requireAdmin, requireSuperAdmin, async (req, res) => {
+  const record = await ActivationCode.findById(req.params.id);
   if (!record) {
-    flash(req, "error", "ليس لديك صلاحية لتعديل هذا الكود أو الكود غير موجود");
+    flash(req, "error", "الكود غير موجود");
     return res.redirect("/admin?tab=FARZ_V2");
   }
-  const tab = isFarzonApp(record.appId) ? "FARZ_V2" : "FARZ_V1";
   await ActivationCode.updateCode(record.id, { isBlocked: true });
   flash(req, "success", `تم حظر الكود ${record.code}`);
-  return res.redirect(`/admin?tab=${tab}`);
+  return res.redirect(redirectBackForCode(record));
 });
 
-router.post("/codes/:id/unblock", requireAdmin, async (req, res) => {
-  const record = await canModifyCode(req, req.params.id);
+router.post("/codes/:id/unblock", requireAdmin, requireSuperAdmin, async (req, res) => {
+  const record = await ActivationCode.findById(req.params.id);
   if (!record) {
-    flash(req, "error", "ليس لديك صلاحية لتعديل هذا الكود أو الكود غير موجود");
+    flash(req, "error", "الكود غير موجود");
     return res.redirect("/admin?tab=FARZ_V2");
   }
-  const tab = isFarzonApp(record.appId) ? "FARZ_V2" : "FARZ_V1";
   await ActivationCode.updateCode(record.id, { isBlocked: false });
   flash(req, "success", `تم إلغاء حظر الكود ${record.code}`);
-  return res.redirect(`/admin?tab=${tab}`);
+  return res.redirect(redirectBackForCode(record));
 });
 
-router.post("/codes/:id/force-logout", requireAdmin, async (req, res) => {
-  const record = await canModifyCode(req, req.params.id);
+router.post("/codes/:id/force-logout", requireAdmin, requireSuperAdmin, async (req, res) => {
+  const record = await ActivationCode.findById(req.params.id);
   if (!record) {
-    flash(req, "error", "ليس لديك صلاحية لتعديل هذا الكود أو الكود غير موجود");
+    flash(req, "error", "الكود غير موجود");
     return res.redirect("/admin?tab=FARZ_V2");
   }
-  const tab = isFarzonApp(record.appId) ? "FARZ_V2" : "FARZ_V1";
   await ActivationCode.updateCode(record.id, {
     deviceId: null,
     isActivated: false,
     activatedAt: null
   });
   flash(req, "success", `تم طرد الجهاز المرتبط بالكود ${record.code}`);
-  return res.redirect(`/admin?tab=${tab}`);
+  return res.redirect(redirectBackForCode(record));
 });
 
-router.post("/codes/:id/delete", requireAdmin, async (req, res) => {
-  const record = await canModifyCode(req, req.params.id);
+// Extend or adjust code expiration WITHOUT unbinding device!
+router.post("/codes/:id/extend", requireAdmin, requireSuperAdmin, async (req, res) => {
+  const record = await ActivationCode.findById(req.params.id);
   if (!record) {
-    flash(req, "error", "ليس لديك صلاحية لحذف هذا الكود أو الكود غير موجود");
+    flash(req, "error", "الكود غير موجود");
     return res.redirect("/admin?tab=FARZ_V2");
   }
-  const tab = isFarzonApp(record.appId) ? "FARZ_V2" : "FARZ_V1";
+  try {
+    const mode = String(req.body.extend_mode || "add").trim();
+    const updated =
+      mode === "set"
+        ? await ActivationCode.extendCode(record.id, { setDaysFromNow: req.body.days })
+        : await ActivationCode.extendCode(record.id, { addDays: req.body.days || req.body.add_days });
+
+    const rem = computeRemainingInfo(updated.expiresAt);
+    flash(
+      req,
+      "success",
+      `تم تحديث صلاحية الكود ${updated.code} بنجاح دون فك ربط الجهاز (${rem.labelAr})`
+    );
+  } catch (err) {
+    flash(req, "error", err.message || "تعذر تمديد صلاحية الكود");
+  }
+  return res.redirect(redirectBackForCode(record));
+});
+
+router.post("/codes/:id/delete", requireAdmin, requireSuperAdmin, async (req, res) => {
+  const record = await ActivationCode.findById(req.params.id);
+  if (!record) {
+    flash(req, "error", "الكود غير موجود");
+    return res.redirect("/admin?tab=FARZ_V2");
+  }
+  const redirectUrl = redirectBackForCode(record);
   await ActivationCode.deleteById(record.id);
-  flash(req, "success", "تم حذف الكود بنجاح");
-  return res.redirect(`/admin?tab=${tab}`);
+  flash(req, "success", `تم حذف الكود ${record.code} بنجاح`);
+  return res.redirect(redirectUrl);
 });
 
-// ==========================================
-// Admin File Management (Excel Upload & Delete)
-// ==========================================
-router.post("/files/upload", requireAdmin, upload.single("dataFile"), async (req, res) => {
+// ============================================================================
+// Tab 3: Managers & Their Users (Super Admin ONLY)
+// ============================================================================
+
+// Create new Manager + Manager Code + optional initial batch of User Codes
+router.post("/managers", requireAdmin, requireSuperAdmin, async (req, res) => {
   try {
-    if (!req.file) {
-      flash(req, "error", "يرجى اختيار ملف Excel بصيغة (.xlsx, .xls, .xlsm, .xltx, .xltm, .xlsb أو .csv)");
-      return res.redirect("/admin?tab=FARZ_V2");
+    const name = String(req.body.name || "").trim();
+    const maxUsers = parseInt(req.body.max_users, 10);
+    const managerDurationDays = parseInt(req.body.manager_duration_days, 10);
+    const initialUsersCount = parseInt(req.body.initial_users_count || "0", 10) || 0;
+    const usersDurationDays = parseInt(req.body.users_duration_days || "30", 10);
+    const customUserDurations = String(req.body.custom_user_durations || "").trim();
+    const notes = String(req.body.notes || "").trim();
+
+    if (!name) {
+      flash(req, "error", "يرجى إدخال اسم المدير أو المجموعة");
+      return res.redirect("/admin?tab=MANAGERS");
+    }
+    if (!Number.isInteger(maxUsers) || maxUsers < 0) {
+      flash(req, "error", "عدد المستخدمين المسموح يجب أن يكون رقماً صحيحاً 0 أو أكبر");
+      return res.redirect("/admin?tab=MANAGERS");
+    }
+    if (!Number.isInteger(managerDurationDays) || managerDurationDays <= 0) {
+      flash(req, "error", "مدة صلاحية كود المدير بالأيام مطلوبة ويجب أن تكون أكبر من 0");
+      return res.redirect("/admin?tab=MANAGERS");
     }
 
-    let recordsCount = 0;
-    try {
-      const workbook = XLSX.readFile(req.file.path, { sheetRows: 50000 });
-      const firstSheet = workbook.SheetNames[0];
-      if (firstSheet) {
-        const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { header: 1 });
-        recordsCount = Math.max(0, rows.length - 1);
+    // Validate optional initial user batch BEFORE creating manager
+    let initialDurations = [];
+    if (customUserDurations || initialUsersCount > 0) {
+      initialDurations = parseBatchDurations(initialUsersCount, usersDurationDays, customUserDurations);
+      if (initialDurations.length > maxUsers) {
+        flash(
+          req,
+          "error",
+          `عدد أكواد المستخدمين المطلوب إصدارها (${initialDurations.length}) يتجاوز الحد المسموح للمدير (${maxUsers})`
+        );
+        return res.redirect("/admin?tab=MANAGERS");
       }
-    } catch (e) {
-      console.warn("Could not parse excel rows count:", e.message);
     }
 
-    // Compute SHA-256 hash of file for client sync checks
-    const fileBuffer = fs.readFileSync(req.file.path);
-    const fileHash = crypto.createHash("sha256").update(fileBuffer).digest("hex");
-
-    await AdminFile.createFile({
-      adminId: req.admin.id,
-      fileName: req.file.originalname,
-      fileSize: req.file.size,
-      recordsCount,
-      storagePath: req.file.path,
-      fileHash
+    // 1. Create manager group
+    const manager = await Manager.createManager({
+      name,
+      maxUsers,
+      notes,
+      createdByAdminId: req.admin.id
     });
 
-    flash(req, "success", `تم رفع ملف البيانات (${req.file.originalname}) بنجاح (${recordsCount} سجل)`);
-  } catch (err) {
-    console.error("Upload error:", err);
-    flash(req, "error", "تعذر رفع الملف: " + err.message);
-  }
-  return res.redirect("/admin?tab=FARZ_V2");
-});
+    // 2. Create manager's own activation code with independent expiration
+    const reserved = new Set();
+    const mgrCodeStr = await generateUniqueCode("FARZ_V2", reserved);
+    const mgrExp = computeExpiry(managerDurationDays, "days");
+    const managerCode = await ActivationCode.createCode({
+      code: mgrCodeStr,
+      expiresAt: mgrExp.expiresAt.toISOString(),
+      durationDays: mgrExp.durationDays,
+      durationLabel: mgrExp.durationLabel,
+      clientName: `مدير: ${manager.name}`,
+      appId: "FARZ_V2",
+      codeRole: "manager",
+      managerId: manager.id,
+      createdByAdminId: req.admin.id
+    });
 
-router.post("/files/:id/delete", requireAdmin, async (req, res) => {
-  try {
-    const file = await AdminFile.findById(req.params.id);
-    if (!file) {
-      flash(req, "error", "الملف غير موجود");
-      return res.redirect("/admin?tab=FARZ_V2");
-    }
-
-    if (req.admin.role !== "super_admin" && String(file.adminId) !== String(req.admin.id)) {
-      flash(req, "error", "ليس لديك صلاحية حذف هذا الملف");
-      return res.redirect("/admin?tab=FARZ_V2");
-    }
-
-    await AdminFile.deleteFile(file.id, req.admin.id);
-
-    // Clean up physical file
-    try {
-      if (file.storagePath && fs.existsSync(file.storagePath)) {
-        fs.unlinkSync(file.storagePath);
+    // 3. Optionally issue initial batch of user codes atomically within quota
+    let issuedUsers = [];
+    if (initialDurations.length > 0) {
+      const items = [];
+      for (let i = 0; i < initialDurations.length; i += 1) {
+        const uCode = await generateUniqueCode("FARZ_V2", reserved);
+        const uExp = computeExpiry(initialDurations[i], "days");
+        items.push({
+          code: uCode,
+          expiresAt: uExp.expiresAt.toISOString(),
+          durationDays: uExp.durationDays,
+          durationLabel: uExp.durationLabel,
+          clientName: `${manager.name} - مستخدم ${i + 1}`
+        });
       }
-    } catch (_) {}
+      issuedUsers = await ActivationCode.issueManagerUserCodesAtomic({
+        managerId: manager.id,
+        items,
+        createdByAdminId: req.admin.id
+      });
+    }
 
-    flash(req, "success", `تم حذف ملف البيانات (${file.fileName}) من السيرفر بنجاح`);
+    const extraMsg = issuedUsers.length > 0 ? ` + إصدار ${issuedUsers.length} كود مستخدم` : "";
+    flash(
+      req,
+      "success",
+      `تم إنشاء المدير (${manager.name}) بحصة ${manager.maxUsers} مستخدم، وكود المدير: ${managerCode.code} (${managerDurationDays} يوم)${extraMsg}`
+    );
+    return res.redirect(`/admin?tab=MANAGERS&manager=${encodeURIComponent(manager.id)}`);
   } catch (err) {
-    flash(req, "error", "تعذر حذف الملف: " + err.message);
+    console.error("Create manager failed:", err.message);
+    flash(req, "error", err.message || "تعذر إنشاء مجموعة المدير");
+    return res.redirect("/admin?tab=MANAGERS");
   }
-  return res.redirect("/admin?tab=FARZ_V2");
 });
 
-// ==========================================
-// Super Admin Only: Sub-Admins Management
-// ==========================================
-router.post("/sub-admins", requireAdmin, requireSuperAdmin, async (req, res) => {
+// Update Manager Quota (forbids reducing below issued user codes count)
+router.post("/managers/:id/quota", requireAdmin, requireSuperAdmin, async (req, res) => {
+  const managerId = req.params.id;
   try {
-    const username = String(req.body.username || "").trim().toLowerCase();
-    const password = String(req.body.password || "");
-    const maxCodesQuota = parseInt(req.body.max_codes_quota, 10) || 50;
+    const newQuota = parseInt(req.body.max_users, 10);
+    const updated = await Manager.updateQuota(managerId, newQuota);
+    flash(req, "success", `تم تحديث حصة المدير (${updated.name}) إلى ${updated.maxUsers} مستخدم بنجاح`);
+  } catch (err) {
+    flash(req, "error", err.message || "تعذر تحديث الحصة");
+  }
+  return res.redirect(`/admin?tab=MANAGERS&manager=${encodeURIComponent(managerId)}`);
+});
 
-    if (!username || !password) {
-      flash(req, "error", "اسم المستخدم وكلمة المرور مطلوبان");
-      return res.redirect("/admin?tab=ADMINS");
+// Enable / Disable Manager Group (manager_group_disabled)
+router.post("/managers/:id/toggle", requireAdmin, requireSuperAdmin, async (req, res) => {
+  const managerId = req.params.id;
+  try {
+    const mgr = await Manager.findById(managerId);
+    if (!mgr) {
+      flash(req, "error", "المدير غير موجود");
+      return res.redirect("/admin?tab=MANAGERS");
     }
+    const nextActive = !mgr.isActive;
+    await Manager.setActive(managerId, nextActive);
+    flash(
+      req,
+      "success",
+      nextActive
+        ? `تم تفعيل مجموعة المدير (${mgr.name}) وإعادة إتاحة ملفاتها لمستخدميها`
+        : `تم تعطيل مجموعة المدير (${mgr.name}) — سيتم حجب ملفات المجموعة عن مستخدميها مع الحفاظ على ملفاتهم الشخصية`
+    );
+  } catch (err) {
+    flash(req, "error", err.message || "تعذر تحديث حالة المجموعة");
+  }
+  return res.redirect(`/admin?tab=MANAGERS&manager=${encodeURIComponent(managerId)}`);
+});
 
-    if (password.length < 6) {
-      flash(req, "error", "كلمة المرور يجب أن لا تقل عن 6 أحرف");
-      return res.redirect("/admin?tab=ADMINS");
+// Issue Manager's own activation code if deleted/missing
+router.post("/managers/:id/manager-code", requireAdmin, requireSuperAdmin, async (req, res) => {
+  const managerId = req.params.id;
+  try {
+    const mgr = await Manager.findById(managerId);
+    if (!mgr) {
+      flash(req, "error", "المدير غير موجود");
+      return res.redirect("/admin?tab=MANAGERS");
     }
-
-    const existing = await Admin.findByUsername(username);
+    const existing = await ActivationCode.findManagerCode(managerId);
     if (existing) {
-      flash(req, "error", "اسم المستخدم مستخدم بالفعل. اختر اسماً آخر.");
-      return res.redirect("/admin?tab=ADMINS");
+      flash(req, "error", `المدير لديه كود فعلي بالفعل: ${existing.code}`);
+      return res.redirect(`/admin?tab=MANAGERS&manager=${encodeURIComponent(managerId)}`);
+    }
+    const days = parseInt(req.body.manager_duration_days, 10);
+    const exp = computeExpiry(days, "days");
+    const codeStr = await generateUniqueCode("FARZ_V2");
+    await ActivationCode.createCode({
+      code: codeStr,
+      expiresAt: exp.expiresAt.toISOString(),
+      durationDays: exp.durationDays,
+      durationLabel: exp.durationLabel,
+      clientName: `مدير: ${mgr.name}`,
+      appId: "FARZ_V2",
+      codeRole: "manager",
+      managerId: mgr.id,
+      createdByAdminId: req.admin.id
+    });
+    flash(req, "success", `تم إصدار كود المدير الجديد: ${codeStr} (${days} يوم)`);
+  } catch (err) {
+    flash(req, "error", err.message || "تعذر إصدار كود المدير");
+  }
+  return res.redirect(`/admin?tab=MANAGERS&manager=${encodeURIComponent(managerId)}`);
+});
+
+// Issue 1 or batch of Manager User Codes atomically within quota (independent durations!)
+router.post("/managers/:id/codes", requireAdmin, requireSuperAdmin, async (req, res) => {
+  const managerId = req.params.id;
+  try {
+    const mgr = await Manager.findById(managerId);
+    if (!mgr) {
+      flash(req, "error", "المدير غير موجود");
+      return res.redirect("/admin?tab=MANAGERS");
     }
 
-    await Admin.createSubAdmin({
-      username,
-      password,
-      maxCodesQuota,
-      createdBy: req.admin.id
+    const durations = parseBatchDurations(
+      req.body.count || 1,
+      req.body.duration_days || 30,
+      req.body.custom_durations
+    );
+    const namePrefix = String(req.body.client_name || "").trim();
+    const existingCount = await ActivationCode.countManagerUserCodes(managerId);
+
+    const reserved = new Set();
+    const items = [];
+    for (let i = 0; i < durations.length; i += 1) {
+      const codeStr = await generateUniqueCode("FARZ_V2", reserved);
+      const exp = computeExpiry(durations[i], "days");
+      const labelName =
+        durations.length === 1 && namePrefix
+          ? namePrefix
+          : namePrefix
+            ? `${namePrefix} ${existingCount + i + 1}`
+            : `${mgr.name} - مستخدم ${existingCount + i + 1}`;
+      items.push({
+        code: codeStr,
+        expiresAt: exp.expiresAt.toISOString(),
+        durationDays: exp.durationDays,
+        durationLabel: exp.durationLabel,
+        clientName: labelName
+      });
+    }
+
+    const issued = await ActivationCode.issueManagerUserCodesAtomic({
+      managerId,
+      items,
+      createdByAdminId: req.admin.id
     });
 
-    flash(req, "success", `تم إنشاء حساب الأدمن الفرعي (${username}) بحصة ${maxCodesQuota} كود بنجاح`);
+    const summary =
+      issued.length === 1
+        ? `تم إصدار كود المستخدم ${issued[0].code} (${issued[0].durationDays} يوم) للمدير (${mgr.name})`
+        : `تم إصدار ${issued.length} كود مستخدم للمدير (${mgr.name}) بنجاح`;
+    flash(req, "success", summary);
   } catch (err) {
-    console.error("Create sub-admin error:", err);
-    flash(req, "error", "تعذر إنشاء حساب الأدمن: " + err.message);
+    console.error("Issue manager user codes failed:", err.message);
+    flash(req, "error", err.message || "تعذر إصدار أكواد المستخدمين");
   }
-  return res.redirect("/admin?tab=ADMINS");
+  return res.redirect(`/admin?tab=MANAGERS&manager=${encodeURIComponent(managerId)}`);
 });
 
-router.post("/sub-admins/:id/toggle", requireAdmin, requireSuperAdmin, async (req, res) => {
+// Super Admin emergency deletion of a Manager's uploaded file
+router.post("/managers/:id/files/:fileId/delete", requireAdmin, requireSuperAdmin, async (req, res) => {
+  const managerId = req.params.id;
+  const fileId = req.params.fileId;
   try {
-    const sub = await Admin.findById(req.params.id);
-    if (sub && sub.role !== "super_admin") {
-      const newStatus = !sub.isActive;
-      await Admin.updateSubAdmin(sub.id, { isActive: newStatus });
-      flash(req, "success", `تم ${newStatus ? "تفعيل" : "إيقاف"} حساب الأدمن (${sub.username})`);
+    const deleted = await ManagerFile.deleteFile(fileId, managerId);
+    if (!deleted) {
+      flash(req, "error", "الملف غير موجود");
+    } else {
+      flash(req, "success", `تم حذف الملف (${deleted.fileName}) من السيرفر بنجاح`);
     }
   } catch (err) {
-    flash(req, "error", "تعذر تحديث حالة الحساب");
+    flash(req, "error", err.message || "تعذر حذف الملف");
   }
-  return res.redirect("/admin?tab=ADMINS");
+  return res.redirect(`/admin?tab=MANAGERS&manager=${encodeURIComponent(managerId)}`);
 });
 
-router.post("/sub-admins/:id/quota", requireAdmin, requireSuperAdmin, async (req, res) => {
-  try {
-    const newQuota = parseInt(req.body.max_codes_quota, 10);
-    if (isNaN(newQuota) || newQuota < 0) {
-      flash(req, "error", "يرجى كتابة رقم صحيح لحصة الأكواد");
-      return res.redirect("/admin?tab=ADMINS");
-    }
-    await Admin.updateSubAdmin(req.params.id, { maxCodesQuota: newQuota });
-    flash(req, "success", "تم تحديث حصة الأكواد بنجاح");
-  } catch (err) {
-    flash(req, "error", "تعذر تحديث الحصة");
-  }
-  return res.redirect("/admin?tab=ADMINS");
-});
-
-router.post("/sub-admins/:id/reset-password", requireAdmin, requireSuperAdmin, async (req, res) => {
-  try {
-    const newPassword = String(req.body.new_password || "");
-    if (!newPassword || newPassword.length < 6) {
-      flash(req, "error", "كلمة المرور الجديدة يجب أن لا تقل عن 6 أحرف");
-      return res.redirect("/admin?tab=ADMINS");
-    }
-    const passwordHash = await Admin.hashPassword(newPassword);
-    await Admin.updatePassword(req.params.id, passwordHash);
-    flash(req, "success", "تم تغيير كلمة المرور بنجاح");
-  } catch (err) {
-    flash(req, "error", "تعذر تغيير كلمة المرور");
-  }
-  return res.redirect("/admin?tab=ADMINS");
+// Explicitly block legacy web sub-admin creation route (defense-in-depth)
+router.post("/sub-admins*", requireAdmin, (_req, res) => {
+  return res.status(410).json({
+    success: false,
+    message: "تم استبدال نظام الأدمن الفرعي للويب بنظام المديرين داخل التطبيق في التاب الثالثة (MANAGERS)."
+  });
 });
 
 module.exports = router;

@@ -6,11 +6,26 @@
 -- 1. Does NOT drop or delete any existing tables, codes, devices, or admins.
 -- 2. All existing FARZ_V1 and FARZ_V2 codes automatically default to
 --    code_role = 'regular' and manager_id = NULL without re-activation.
--- 3. Enforces manager user quotas atomically inside PostgreSQL (FOR UPDATE +
+-- 3. Safely adds role/is_active to public.admin (preserving primary 'admin' as
+--    super_admin without elevating legacy sub-admins).
+-- 4. Enforces manager user quotas atomically inside PostgreSQL (FOR UPDATE +
 --    BEFORE INSERT trigger) to prevent race-condition quota bypasses.
+-- 5. Fully compatible with the currently running legacy Render backend until
+--    Render is updated to feature/managers-expiration-system.
 -- ============================================================================
 
 create extension if not exists pgcrypto;
+
+-- ----------------------------------------------------------------------------
+-- 0. Safely Extend public.admin (Preserve Legacy Accounts Without Elevating Them)
+-- ----------------------------------------------------------------------------
+alter table public.admin
+  add column if not exists role varchar(50) not null default 'sub_admin',
+  add column if not exists is_active boolean not null default true;
+
+update public.admin
+  set role = 'super_admin'
+  where lower(trim(username)) = 'admin';
 
 -- ----------------------------------------------------------------------------
 -- 1. Managers Table (Independent Manager Groups)
@@ -35,6 +50,9 @@ create index if not exists managers_created_at_idx
 -- ----------------------------------------------------------------------------
 -- 2. Extend activation_codes Non-Destructively
 -- ----------------------------------------------------------------------------
+alter table public.activation_codes
+  add column if not exists created_by_admin_id uuid references public.admin(id) on delete set null;
+
 alter table public.activation_codes
   add column if not exists code_role varchar(30) not null default 'regular';
 
@@ -92,6 +110,9 @@ create index if not exists activation_codes_manager_role_idx
 create index if not exists activation_codes_app_role_idx
   on public.activation_codes (app_id, code_role);
 
+create index if not exists activation_codes_created_by_admin_id_idx
+  on public.activation_codes (created_by_admin_id);
+
 -- ----------------------------------------------------------------------------
 -- 3. Manager Files Table (Backed by Supabase Storage Private Bucket)
 -- ----------------------------------------------------------------------------
@@ -124,6 +145,7 @@ create index if not exists manager_files_created_at_idx
 create or replace function public.enforce_manager_user_quota()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 declare
   v_max_users integer;
@@ -158,11 +180,17 @@ begin
 end;
 $$;
 
-drop trigger if exists trg_enforce_manager_user_quota on public.activation_codes;
-create trigger trg_enforce_manager_user_quota
-  before insert on public.activation_codes
-  for each row
-  execute function public.enforce_manager_user_quota();
+do $$
+begin
+  if not exists (
+    select 1 from pg_trigger where tgname = 'trg_enforce_manager_user_quota'
+  ) then
+    create trigger trg_enforce_manager_user_quota
+      before insert on public.activation_codes
+      for each row
+      execute function public.enforce_manager_user_quota();
+  end if;
+end $$;
 
 -- ----------------------------------------------------------------------------
 -- 5. Atomic RPC: Issue Manager User Codes (Batch or Single, Quota-Safe)
@@ -174,6 +202,7 @@ create or replace function public.issue_manager_user_codes(
 )
 returns setof public.activation_codes
 language plpgsql
+set search_path = public
 as $$
 declare
   v_max_users integer;
@@ -259,6 +288,7 @@ create or replace function public.update_manager_quota(
 )
 returns public.managers
 language plpgsql
+set search_path = public
 as $$
 declare
   v_current_count integer;
@@ -300,21 +330,29 @@ $$;
 alter table public.managers enable row level security;
 alter table public.manager_files enable row level security;
 
-drop policy if exists managers_server_access on public.managers;
-create policy managers_server_access
-  on public.managers
-  for all
-  to anon, authenticated
-  using (true)
-  with check (true);
-
-drop policy if exists manager_files_server_access on public.manager_files;
-create policy manager_files_server_access
-  on public.manager_files
-  for all
-  to anon, authenticated
-  using (true)
-  with check (true);
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'managers' and policyname = 'managers_server_access'
+  ) then
+    create policy managers_server_access
+      on public.managers
+      for all
+      to anon, authenticated
+      using (true)
+      with check (true);
+  end if;
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'manager_files' and policyname = 'manager_files_server_access'
+  ) then
+    create policy manager_files_server_access
+      on public.manager_files
+      for all
+      to anon, authenticated
+      using (true)
+      with check (true);
+  end if;
+end $$;
 
 grant select, insert, update, delete on table public.managers to anon, authenticated;
 grant select, insert, update, delete on table public.manager_files to anon, authenticated;

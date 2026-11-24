@@ -292,7 +292,7 @@
         <article><strong><%= managerStats.totalManagers %></strong><span>إجمالي المديرين</span></article>
         <article><strong><%= managerStats.activeManagers %></strong><span>مجموعات نشطة</span></article>
         <article><strong><%= managerStats.totalManagerUsers %></strong><span>إجمالي أكواد المستخدمين</span></article>
-        <article><strong><%= managerStats.totalFiles %></strong><span>ملفات مرفوعة على السيرفر</span></article>
+        <article><strong><%= managerStats.activeManagerUsers %></strong><span>أكواد مستخدمين مفعّلة</span></article>
       </section>
 
       <!-- Create New Manager + Manager Code + Optional Initial Batch -->
@@ -340,13 +340,12 @@
                 <th>كود المدير وصلاحيته</th>
                 <th>حالة المجموعة</th>
                 <th>الحصة (المُصدر / الأقصى / المتبقي)</th>
-                <th>ملفات المجموعة</th>
                 <th>إجراءات</th>
               </tr>
             </thead>
             <tbody>
               <% if (!managers.length) { %>
-                <tr><td colspan="6" class="muted" style="text-align:center; padding:18px;">لا توجد مجموعات مديرين بعد. أنشئ أول مدير من النموذج أعلاه.</td></tr>
+                <tr><td colspan="5" class="muted" style="text-align:center; padding:18px;">لا توجد مجموعات مديرين بعد. أنشئ أول مدير من النموذج أعلاه.</td></tr>
               <% } %>
               <% managers.forEach((mgr) => { %>
                 <tr class="<%= selectedManager && String(selectedManager.id) === String(mgr.id) ? 'row-selected' : '' %>">
@@ -390,9 +389,6 @@
                       <button type="submit" class="ghost">تحديث الحصة</button>
                     </form>
                   </td>
-                  <td>
-                    <span class="badge badge-green"><%= mgr.filesCount %> ملف</span>
-                  </td>
                   <td class="actions">
                     <a href="/admin?tab=MANAGERS&manager=<%= mgr.id %>" class="btn-link-manage">إدارة المجموعة والأكواد</a>
                     <form method="post" action="/admin/managers/<%= mgr.id %>/toggle">
@@ -417,8 +413,7 @@
               <p class="muted" style="font-size:13px;">
                 الحصة المسموحة: <strong><%= selectedManager.maxUsers %></strong> |
                 المُصدر: <strong><%= selectedManager.issuedUsersCount %></strong> |
-                المتبقي: <strong><%= selectedManager.remainingQuota %></strong> |
-                الملفات النشطة: <strong><%= selectedManager.filesCount %></strong>
+                المتبقي: <strong><%= selectedManager.remainingQuota %></strong>
               </p>
             </div>
             <div>
@@ -564,45 +559,6 @@
                         <% } %>
                         <form method="post" action="/admin/codes/<%= item._id %>/force-logout"><button type="submit">طرد الجهاز</button></form>
                         <form method="post" action="/admin/codes/<%= item._id %>/delete" onsubmit="return confirm('هل أنت متأكد من حذف كود المستخدم نهائياً؟');"><button type="submit" class="ghost">حذف</button></form>
-                      </td>
-                    </tr>
-                  <% }) %>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Manager's Uploaded Files (Read/Monitor + Emergency Delete by Super Admin) -->
-          <div style="margin-top:18px;">
-            <h3>📁 الملفات المرفوعة من تطبيق المدير (<%= selectedManager.filesCount %>)</h3>
-            <p class="muted" style="font-size:12px; margin-bottom:10px;">
-              يرفع المدير هذه الملفات مباشرة من تطبيق <strong>10fraz</strong> بكود المدير، وتُحفظ مشفرة/خاصة في Supabase Storage ولا يصل إليها إلا مستخدمو هذه المجموعة فقط.
-            </p>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>اسم الملف</th>
-                    <th>عدد السجلات</th>
-                    <th>الحجم</th>
-                    <th>تاريخ الرفع</th>
-                    <th>إجراء إداري</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <% if (!selectedManager.files.length) { %>
-                    <tr><td colspan="5" class="muted">لم يرفع هذا المدير أي ملفات من تطبيقه بعد.</td></tr>
-                  <% } %>
-                  <% selectedManager.files.forEach((f) => { %>
-                    <tr>
-                      <td><strong>📊 <%= f.fileName %></strong></td>
-                      <td><span class="badge badge-green"><%= f.recordsCount.toLocaleString() %> سجل</span></td>
-                      <td><%= f.sizeKb %> KB</td>
-                      <td><%= f.createdAtText %></td>
-                      <td>
-                        <form method="post" action="/admin/managers/<%= selectedManager.id %>/files/<%= f.id %>/delete" onsubmit="return confirm('حذف هذا الملف من السيرفر ومن أجهزة مستخدمي المجموعة؟');">
-                          <button type="submit" class="danger">حذف من السيرفر</button>
-                        </form>
                       </td>
                     </tr>
                   <% }) %>

@@ -1,7 +1,6 @@
 const express = require("express");
 const Admin = require("../models/Admin");
 const Manager = require("../models/Manager");
-const ManagerFile = require("../models/ManagerFile");
 const ActivationCode = require("../models/ActivationCode");
 const { requireAdmin, requireSuperAdmin } = require("../middleware/auth");
 const {
@@ -173,10 +172,9 @@ router.get("/", requireAdmin, requireSuperAdmin, async (req, res) => {
       activeTab = "MANAGERS";
     }
 
-    const [allCodes, rawManagers, allActiveManagerFiles] = await Promise.all([
+    const [allCodes, rawManagers] = await Promise.all([
       ActivationCode.listAll(),
-      Manager.listAll(),
-      ManagerFile.listAllActive().catch(() => [])
+      Manager.listAll()
     ]);
 
     const managerNameMap = {};
@@ -197,18 +195,7 @@ router.get("/", requireAdmin, requireSuperAdmin, async (req, res) => {
     const statsV1 = calcStats(codesV1);
     const statsV2 = calcStats(codesV2);
 
-    // Tab 3: Build rich manager group summaries
-    const filesByManager = {};
-    for (const f of allActiveManagerFiles) {
-      const k = String(f.managerId);
-      if (!filesByManager[k]) filesByManager[k] = [];
-      filesByManager[k].push({
-        ...f,
-        sizeKb: Math.max(1, Math.round(f.fileSize / 1024)),
-        createdAtText: f.createdAt ? f.createdAt.toLocaleString("ar-EG") : "—"
-      });
-    }
-
+    // Tab 3: Build manager group code/quota summaries ONLY (Super Admin has zero access to manager files)
     const managers = rawManagers.map((m) => {
       const managerCode = mappedCodes.find(
         (c) => String(c.managerId) === String(m.id) && c.codeRole === "manager"
@@ -216,7 +203,6 @@ router.get("/", requireAdmin, requireSuperAdmin, async (req, res) => {
       const userCodes = mappedCodes.filter(
         (c) => String(c.managerId) === String(m.id) && c.codeRole === "manager_user"
       );
-      const mFiles = filesByManager[String(m.id)] || [];
       return {
         ...m,
         managerCode,
@@ -224,8 +210,6 @@ router.get("/", requireAdmin, requireSuperAdmin, async (req, res) => {
         issuedUsersCount: userCodes.length,
         remainingQuota: Math.max(0, m.maxUsers - userCodes.length),
         activeUsersCount: userCodes.filter((u) => u.isActivated && !u.isBlocked && !u.expired).length,
-        files: mFiles,
-        filesCount: mFiles.length,
         createdAtText: m.createdAt ? m.createdAt.toLocaleString("ar-EG") : "—"
       };
     });
@@ -240,7 +224,7 @@ router.get("/", requireAdmin, requireSuperAdmin, async (req, res) => {
       totalManagers: managers.length,
       activeManagers: managers.filter((m) => m.isActive).length,
       totalManagerUsers: managers.reduce((sum, m) => sum + m.issuedUsersCount, 0),
-      totalFiles: allActiveManagerFiles.length
+      activeManagerUsers: managers.reduce((sum, m) => sum + m.activeUsersCount, 0)
     };
 
     res.render("dashboard", {
@@ -608,22 +592,19 @@ router.post("/managers/:id/codes", requireAdmin, requireSuperAdmin, async (req, 
   return res.redirect(`/admin?tab=MANAGERS&manager=${encodeURIComponent(managerId)}`);
 });
 
-// Super Admin emergency deletion of a Manager's uploaded file
-router.post("/managers/:id/files/:fileId/delete", requireAdmin, requireSuperAdmin, async (req, res) => {
-  const managerId = req.params.id;
-  const fileId = req.params.fileId;
-  try {
-    const deleted = await ManagerFile.deleteFile(fileId, managerId);
-    if (!deleted) {
-      flash(req, "error", "الملف غير موجود");
-    } else {
-      flash(req, "success", `تم حذف الملف (${deleted.fileName}) من السيرفر بنجاح`);
-    }
-  } catch (err) {
-    flash(req, "error", err.message || "تعذر حذف الملف");
+// Explicitly forbid Super Admin from viewing, uploading, downloading, or deleting Manager files (server-side enforcement)
+router.all(
+  ["/files", "/files/*", "/managers/:id/files", "/managers/:id/files/*"],
+  requireAdmin,
+  requireSuperAdmin,
+  (_req, res) => {
+    return res.status(403).json({
+      success: false,
+      status: "forbidden_super_admin_files",
+      message: "السوبر أدمن مختص بإدارة الأكواد والحصص والمدد فقط، ولا يملك صلاحية الوصول إلى ملفات المديرين."
+    });
   }
-  return res.redirect(`/admin?tab=MANAGERS&manager=${encodeURIComponent(managerId)}`);
-});
+);
 
 // Explicitly block legacy web sub-admin creation route (defense-in-depth)
 router.post("/sub-admins*", requireAdmin, (_req, res) => {

@@ -813,4 +813,120 @@ test("Farzon Full Managers, Expiration, Quotas, Isolation & Files Suite", async 
     assert.equal(hbAfterLogout.json.success, false);
     assert.equal(hbAfterLogout.json.status, "logged_out");
   });
+
+  await t.test("10. Final Correction: Super Admin has zero file access (HTML + 403 APIs), multi-file upload/single delete, duplicate names & local-delete re-download", async () => {
+    // Manager Mohamed uploads 3 files sequentially (Data_1.xlsx, Data_2.xlsx, Data_3.xlsx)
+    const buf1 = makeSampleXlsxBuffer([["اللوحة", "المالك"], ["ر ت ث 1001", "عميل 1"]]);
+    const buf2 = makeSampleXlsxBuffer([["اللوحة", "المالك"], ["ج ح خ 2002", "عميل 2"]]);
+    const buf3 = makeSampleXlsxBuffer([["اللوحة", "المالك"], ["د ذ ر 3003", "عميل 3"]]);
+
+    const uploadFile = async (name, buffer) => {
+      const mp = buildMultipartBody("file", name, buffer);
+      return httpRequest(port, "POST", "/api/farzon/manager/files/upload", {
+        headers: {
+          "Content-Type": mp.contentType,
+          "X-License-Code": mgrMohamedCode,
+          "X-Device-Id": "dev-mgr-mohamed",
+          "X-File-Name": encodeURIComponent(name)
+        },
+        body: mp.body
+      });
+    };
+
+    const u1 = await uploadFile("Data_1.xlsx", buf1);
+    const u2 = await uploadFile("Data_2.xlsx", buf2);
+    const u3 = await uploadFile("Data_3.xlsx", buf3);
+    assert.equal(u1.status, 201);
+    assert.equal(u2.status, 201);
+    assert.equal(u3.status, 201);
+    assert.equal(u3.json.filesCount, 3);
+
+    // Upload a duplicate filename Data_1.xlsx -> gets its own unique UUID without colliding
+    const buf1Copy = makeSampleXlsxBuffer([["اللوحة", "المالك"], ["ز س ش 4004", "عميل 4"]]);
+    const u1Dup = await uploadFile("Data_1.xlsx", buf1Copy);
+    assert.equal(u1Dup.status, 201);
+    assert.notEqual(u1Dup.json.file.id, u1.json.file.id);
+    assert.equal(u1Dup.json.file.fileName, "Data_1.xlsx");
+    assert.equal(u1Dup.json.filesCount, 4);
+
+    // Super Admin dashboard HTML MUST NOT display ANY manager file names, counts, or file actions!
+    const mgrTabHtml = await httpRequest(port, "GET", `/admin?tab=MANAGERS&manager=${mgrMohamedId}`, {
+      cookie: superCookie
+    });
+    assert.equal(mgrTabHtml.status, 200);
+    assert.ok(!mgrTabHtml.text.includes("Data_1.xlsx"), "Super Admin HTML leaked manager file Data_1.xlsx");
+    assert.ok(!mgrTabHtml.text.includes("Data_2.xlsx"), "Super Admin HTML leaked manager file Data_2.xlsx");
+    assert.ok(!mgrTabHtml.text.includes("Data_3.xlsx"), "Super Admin HTML leaked manager file Data_3.xlsx");
+    assert.ok(!mgrTabHtml.text.includes("ahmed_file_2.xlsx"), "Super Admin HTML leaked ahmed_file_2.xlsx");
+    assert.ok(!mgrTabHtml.text.includes("الملفات المرفوعة من تطبيق المدير"), "Super Admin HTML still shows files section");
+    assert.ok(!mgrTabHtml.text.includes("/files/"), "Super Admin HTML still renders file action URLs");
+
+    // Server-side 403 block on ALL Super Admin file routes
+    const blockGetFiles = await httpRequest(port, "GET", "/admin/files", { cookie: superCookie });
+    assert.equal(blockGetFiles.status, 403);
+    assert.equal(blockGetFiles.json.status, "forbidden_super_admin_files");
+
+    const blockMgrFilesList = await httpRequest(port, "GET", `/admin/managers/${mgrMohamedId}/files`, {
+      cookie: superCookie
+    });
+    assert.equal(blockMgrFilesList.status, 403);
+
+    const blockMgrFileDelete = await httpRequest(
+      port,
+      "POST",
+      `/admin/managers/${mgrMohamedId}/files/${u1.json.file.id}/delete`,
+      { cookie: superCookie }
+    );
+    assert.equal(blockMgrFileDelete.status, 403);
+    assert.equal(blockMgrFileDelete.json.status, "forbidden_super_admin_files");
+
+    // Manager deletes ONLY Data_2.xlsx -> Data_1.xlsx (both copies) and Data_3.xlsx remain intact!
+    const del2 = await httpRequest(port, "POST", `/api/farzon/manager/files/${u2.json.file.id}/delete`, {
+      body: { code: mgrMohamedCode, deviceId: "dev-mgr-mohamed" }
+    });
+    assert.equal(del2.status, 200);
+    assert.equal(del2.json.filesCount, 3);
+
+    // Manager deletes ONLY the duplicate Data_1.xlsx -> original Data_1.xlsx + Data_3.xlsx stay intact!
+    const delDup = await httpRequest(port, "POST", `/api/farzon/manager/files/${u1Dup.json.file.id}/delete`, {
+      body: { code: mgrMohamedCode, deviceId: "dev-mgr-mohamed" }
+    });
+    assert.equal(delDup.status, 200);
+    assert.equal(delDup.json.filesCount, 2);
+
+    // Manager-user downloads Data_1.xlsx, deletes local copy (does not call server delete), then re-downloads it!
+    const userList = await httpRequest(port, "POST", "/api/farzon/my-data-files", {
+      body: { code: mohamedUserCode, deviceId: "dev-user-mohamed" }
+    });
+    assert.equal(userList.status, 200);
+    const remainingNames = userList.json.files.map((f) => f.fileName).sort();
+    assert.deepEqual(remainingNames, ["Data_1.xlsx", "Data_3.xlsx"]);
+
+    const dl1 = await httpRequest(port, "POST", `/api/farzon/files/${u1.json.file.id}/download`, {
+      body: { code: mohamedUserCode, deviceId: "dev-user-mohamed" }
+    });
+    assert.equal(dl1.status, 200);
+    assert.ok(dl1.raw.equals(buf1));
+
+    // Re-download after user deleted local copy on their phone
+    const dl1Again = await httpRequest(port, "POST", `/api/farzon/files/${u1.json.file.id}/download`, {
+      body: { code: mohamedUserCode, deviceId: "dev-user-mohamed" }
+    });
+    assert.equal(dl1Again.status, 200);
+    assert.ok(dl1Again.raw.equals(buf1));
+
+    // Manager-user CANNOT delete manager file on server (403)
+    const userTryServerDel = await httpRequest(port, "POST", `/api/farzon/manager/files/${u1.json.file.id}/delete`, {
+      body: { code: mohamedUserCode, deviceId: "dev-user-mohamed" }
+    });
+    assert.equal(userTryServerDel.status, 403);
+
+    // Regular user CANNOT upload to manager server (403)
+    const regMp = buildMultipartBody("file", "personal.xlsx", buf1);
+    const regTryUp = await httpRequest(port, "POST", "/api/farzon/manager/files/upload", {
+      headers: { "Content-Type": regMp.contentType, "X-License-Code": "FARZON-OLD1-0001", "X-Device-Id": "dev-reg-old" },
+      body: regMp.body
+    });
+    assert.equal(regTryUp.status, 403);
+  });
 });

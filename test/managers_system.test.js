@@ -233,14 +233,89 @@ function createMockSupabase() {
         if (!storageBuckets[bucket]) storageBuckets[bucket] = new Map();
         const store = storageBuckets[bucket];
         return {
-          async upload(storagePath, buffer) {
-            store.set(storagePath, Buffer.from(buffer));
+          async upload(storagePath, bodyOrStream) {
+            let buf;
+            if (Buffer.isBuffer(bodyOrStream)) {
+              buf = Buffer.from(bodyOrStream);
+            } else if (bodyOrStream && typeof bodyOrStream[Symbol.asyncIterator] === "function") {
+              const parts = [];
+              for await (const chunk of bodyOrStream) {
+                parts.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+              }
+              buf = Buffer.concat(parts);
+            } else {
+              buf = Buffer.from(bodyOrStream || "");
+            }
+            store.set(storagePath, {
+              bytes: buf,
+              createdAt: new Date().toISOString(),
+              etag: crypto.createHash("md5").update(buf).digest("hex")
+            });
             return { data: { path: storagePath }, error: null };
           },
+          async createSignedUploadUrl(storagePath, opts = {}) {
+            const token = `signed-tus-tok-${crypto.randomBytes(12).toString("hex")}`;
+            return {
+              data: {
+                signedUrl: `https://test-ref.supabase.co/storage/v1/object/upload/sign/${bucket}/${storagePath}?token=${token}`,
+                path: storagePath,
+                token,
+                upsert: Boolean(opts.upsert)
+              },
+              error: null
+            };
+          },
+          async createSignedUrl(storagePath, expiresIn) {
+            if (!store.has(storagePath)) {
+              return { data: null, error: { message: "Object not found" } };
+            }
+            return {
+              data: {
+                signedUrl: `https://test-ref.storage.supabase.co/storage/v1/object/sign/${bucket}/${storagePath}?token=dl-${crypto.randomBytes(8).toString("hex")}&exp=${expiresIn}`
+              },
+              error: null
+            };
+          },
+          async info(storagePath) {
+            const entry = store.get(storagePath);
+            if (!entry) return { data: null, error: { statusCode: 404, message: "Object not found" } };
+            return {
+              data: {
+                size: entry.bytes.length,
+                contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                etag: entry.etag,
+                lastModified: entry.createdAt
+              },
+              error: null
+            };
+          },
+          async downloadRange(storagePath, start, end) {
+            const entry = store.get(storagePath);
+            if (!entry) return { data: null, error: { message: "Object not found" } };
+            return { data: entry.bytes.subarray(start, end + 1), error: null };
+          },
+          async list(prefix = "") {
+            const normPrefix = prefix ? `${prefix.replace(/\/+$/, "")}/` : "";
+            const items = [];
+            for (const [k, v] of store.entries()) {
+              if (!normPrefix || k.startsWith(normPrefix)) {
+                const name = normPrefix ? k.slice(normPrefix.length) : k;
+                if (!name.includes("/")) {
+                  items.push({
+                    name,
+                    created_at: v.createdAt,
+                    updated_at: v.createdAt,
+                    metadata: { size: v.bytes.length, eTag: v.etag }
+                  });
+                }
+              }
+            }
+            return { data: items, error: null };
+          },
           async download(storagePath) {
-            const buf = store.get(storagePath);
-            if (!buf) return { data: null, error: { message: "Object not found" } };
-            return { data: Buffer.from(buf), error: null };
+            const entry = store.get(storagePath);
+            if (!entry) return { data: null, error: { message: "Object not found" } };
+            return { data: Buffer.from(entry.bytes), error: null };
           },
           async remove(paths) {
             for (const p of paths) store.delete(p);
@@ -928,5 +1003,157 @@ test("Farzon Full Managers, Expiration, Quotas, Isolation & Files Suite", async 
       body: regMp.body
     });
     assert.equal(regTryUp.status, 403);
+  });
+
+  await t.test("11. Solution C Direct Signed TUS Upload (40 MB zero-Render-RAM), Token Refresh, Idempotent Complete, Signed Download URL & Isolation", async () => {
+    const prevUrl = process.env.SUPABASE_URL;
+    const prevServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const prevAnonKey = process.env.SUPABASE_ANON_KEY;
+    process.env.SUPABASE_URL = "https://khiptabndxlmfltrvkfh.supabase.co";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "test-secret-service-role-never-expose";
+    process.env.SUPABASE_ANON_KEY = "test-public-anon-key";
+
+    try {
+      const size40MB = 40 * 1024 * 1024;
+      const fake40Hash = crypto.createHash("sha256").update("synthetic-40mb-marker").digest("hex");
+
+      // 11a. Regular & Manager-User CANNOT call /upload/init (403)
+      const userInitBlocked = await httpRequest(port, "POST", "/api/farzon/manager/files/upload/init", {
+        body: { code: mohamedUserCode, deviceId: "dev-user-mohamed", fileName: "blocked.xlsx", fileSize: 1024 }
+      });
+      assert.equal(userInitBlocked.status, 403);
+
+      // 11b. > 50 MB is rejected immediately at /upload/init with HTTP 413 and exact limit message
+      const over50 = await httpRequest(port, "POST", "/api/farzon/manager/files/upload/init", {
+        body: { code: mgrMohamedCode, deviceId: "dev-mgr-mohamed", fileName: "huge_55mb.xlsx", fileSize: 55 * 1024 * 1024 }
+      });
+      assert.equal(over50.status, 413);
+      assert.equal(over50.json.status, "file_too_large");
+      assert.equal(over50.json.maxFileSizeMb, 50);
+
+      // 11c. Manager initializes 40 MB Signed TUS upload (JSON-only metadata -> zero bytes in Render RAM!)
+      const init40 = await httpRequest(port, "POST", "/api/farzon/manager/files/upload/init", {
+        body: {
+          code: mgrMohamedCode,
+          deviceId: "dev-mgr-mohamed",
+          fileName: "ملف_كبير_40ميجا.xlsx",
+          fileSize: size40MB,
+          fileHash: fake40Hash,
+          recordsCount: 500747
+        }
+      });
+      assert.equal(init40.status, 200);
+      assert.equal(init40.json.success, true);
+      assert.equal(init40.json.chunkSizeBytes, 6 * 1024 * 1024);
+      assert.equal(init40.json.tusEndpoint, "https://khiptabndxlmfltrvkfh.storage.supabase.co/storage/v1/upload/resumable/sign");
+      assert.ok(init40.json.tusHeaders["x-signature"].startsWith("signed-tus-tok-"));
+      assert.equal(init40.json.tusHeaders.apikey, "test-public-anon-key");
+      // Security: service_role key MUST NEVER appear anywhere in init response!
+      assert.ok(!init40.text.includes("test-secret-service-role-never-expose"));
+      assert.ok(init40.json.storagePath.startsWith(`managers/${mgrMohamedId}/`));
+
+      // 11d. Completing BEFORE object is uploaded to Supabase Storage MUST fail (409 upload_incomplete)
+      // and file MUST NOT be visible to manager_user yet!
+      const prematureComplete = await httpRequest(port, "POST", "/api/farzon/manager/files/upload/complete", {
+        body: { code: mgrMohamedCode, deviceId: "dev-mgr-mohamed", uploadSessionToken: init40.json.uploadSessionToken }
+      });
+      assert.equal(prematureComplete.status, 409);
+      assert.equal(prematureComplete.json.status, "upload_incomplete");
+
+      // 11e. Token Refresh mid-upload re-issues a fresh x-signature for the EXACT same fileId & storagePath
+      const refreshed = await httpRequest(port, "POST", "/api/farzon/manager/files/upload/init", {
+        body: {
+          code: mgrMohamedCode,
+          deviceId: "dev-mgr-mohamed",
+          uploadSessionToken: init40.json.uploadSessionToken
+        }
+      });
+      assert.equal(refreshed.status, 200);
+      assert.equal(refreshed.json.refreshed, true);
+      assert.equal(refreshed.json.fileId, init40.json.fileId);
+      assert.equal(refreshed.json.storagePath, init40.json.storagePath);
+      assert.notEqual(refreshed.json.tusToken, init40.json.tusToken);
+
+      // 11f. Simulate Direct Supabase TUS completing a 40 MB valid XLSX object (PK\x03\x04 header + 40 MB size)
+      // without passing those 40 MB through Express/Render!
+      const validZipHead = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00]);
+      const virtual40Entry = {
+        bytes: {
+          length: size40MB,
+          subarray: (s, e) => validZipHead.subarray(s, Math.min(e, validZipHead.length))
+        },
+        createdAt: new Date().toISOString(),
+        etag: "etag-40mb-verified"
+      };
+      mockDb.storageBuckets["manager-files"].set(init40.json.storagePath, virtual40Entry);
+
+      // Cross-manager complete attempt MUST be blocked (403)
+      // Re-enable Manager Ahmed briefly to test cross-manager session hijack rejection
+      await httpRequest(port, "POST", `/admin/managers/${mgrAhmedId}/toggle`, { cookie: superCookie });
+      const hijackComplete = await httpRequest(port, "POST", "/api/farzon/manager/files/upload/complete", {
+        body: { code: mgrAhmedCode, deviceId: "dev-mgr-ahmed", uploadSessionToken: init40.json.uploadSessionToken }
+      });
+      assert.equal(hijackComplete.status, 403);
+      assert.equal(hijackComplete.json.status, "forbidden_group");
+
+      // 11g. Legitimate Manager completes the 40 MB upload -> 201 Created
+      const complete1 = await httpRequest(port, "POST", "/api/farzon/manager/files/upload/complete", {
+        body: { code: mgrMohamedCode, deviceId: "dev-mgr-mohamed", uploadSessionToken: init40.json.uploadSessionToken }
+      });
+      assert.equal(complete1.status, 201);
+      assert.equal(complete1.json.success, true);
+      assert.equal(complete1.json.alreadyCompleted, false);
+      assert.equal(complete1.json.file.id, init40.json.fileId);
+      assert.equal(complete1.json.file.fileName, "ملف_كبير_40ميجا.xlsx");
+      assert.equal(complete1.json.file.fileSize, size40MB);
+      assert.equal(complete1.json.file.recordsCount, 500747);
+
+      // 11h. Re-sending /complete (idempotency retry) returns 200 without creating a duplicate DB row!
+      const countBeforeReplay = mockDb.tables.manager_files.filter((f) => f.id === init40.json.fileId).length;
+      const completeReplay = await httpRequest(port, "POST", "/api/farzon/manager/files/upload/complete", {
+        body: { code: mgrMohamedCode, deviceId: "dev-mgr-mohamed", uploadSessionToken: init40.json.uploadSessionToken }
+      });
+      assert.equal(completeReplay.status, 200);
+      assert.equal(completeReplay.json.alreadyCompleted, true);
+      assert.equal(completeReplay.json.file.id, init40.json.fileId);
+      assert.equal(mockDb.tables.manager_files.filter((f) => f.id === init40.json.fileId).length, countBeforeReplay);
+
+      // 11i. Disguised non-Excel file (invalid magic bytes) is rejected at /complete AND auto-removed from Storage!
+      const badInit = await httpRequest(port, "POST", "/api/farzon/manager/files/upload/init", {
+        body: { code: mgrMohamedCode, deviceId: "dev-mgr-mohamed", fileName: "fake.xlsx", fileSize: 128 }
+      });
+      assert.equal(badInit.status, 200);
+      mockDb.storageBuckets["manager-files"].set(badInit.json.storagePath, {
+        bytes: Buffer.from("MZ_NOT_AN_EXCEL_FILE_EXECUTABLE_PAYLOAD_PADDING".padEnd(128, "X")),
+        createdAt: new Date().toISOString(),
+        etag: "bad-etag"
+      });
+      const badComplete = await httpRequest(port, "POST", "/api/farzon/manager/files/upload/complete", {
+        body: { code: mgrMohamedCode, deviceId: "dev-mgr-mohamed", uploadSessionToken: badInit.json.uploadSessionToken }
+      });
+      assert.equal(badComplete.status, 400);
+      assert.equal(badComplete.json.status, "invalid_file");
+      assert.equal(mockDb.storageBuckets["manager-files"].has(badInit.json.storagePath), false, "Invalid file must be purged from Storage");
+
+      // 11j. Manager-User requests short-lived Signed Download URL for the 40 MB file -> 200 OK (zero bytes through Render)
+      const dlUrlOk = await httpRequest(port, "POST", `/api/farzon/files/${init40.json.fileId}/download-url`, {
+        body: { code: mohamedUserCode, deviceId: "dev-user-mohamed" }
+      });
+      assert.equal(dlUrlOk.status, 200);
+      assert.equal(dlUrlOk.json.success, true);
+      assert.equal(dlUrlOk.json.fileSize, size40MB);
+      assert.ok(dlUrlOk.json.signedDownloadUrl.includes(init40.json.storagePath));
+
+      // 11k. Another manager's user CANNOT obtain Signed Download URL for Mohamed's 40 MB file (403 forbidden_group)
+      const dlUrlCrossBlocked = await httpRequest(port, "POST", `/api/farzon/files/${init40.json.fileId}/download-url`, {
+        body: { code: ahmedUser30Code, deviceId: "dev-user-a30" }
+      });
+      assert.equal(dlUrlCrossBlocked.status, 403);
+      assert.equal(dlUrlCrossBlocked.json.status, "forbidden_group");
+    } finally {
+      if (prevUrl === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = prevUrl;
+      if (prevServiceKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY; else process.env.SUPABASE_SERVICE_ROLE_KEY = prevServiceKey;
+      if (prevAnonKey === undefined) delete process.env.SUPABASE_ANON_KEY; else process.env.SUPABASE_ANON_KEY = prevAnonKey;
+    }
   });
 });

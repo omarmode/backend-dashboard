@@ -60,8 +60,31 @@ async function createFile({
     .select("*")
     .single();
 
+  if (error) {
+    // Idempotency safety: if a concurrent /complete request already inserted this exact fileId
+    // for the same manager, return the existing record cleanly instead of failing.
+    const msg = String(error.message || "").toLowerCase();
+    if (error.code === "23505" || msg.includes("duplicate key")) {
+      const existing = await findById(id);
+      if (existing && String(existing.managerId) === String(managerId)) {
+        return existing;
+      }
+    }
+  }
+
   await throwIfError(error, "تعذر تسجيل بيانات الملف في قاعدة البيانات");
   return mapFile(data);
+}
+
+async function listAllPathsByManager(managerId) {
+  if (!managerId) return new Set();
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("manager_files")
+    .select("storage_path")
+    .eq("manager_id", managerId);
+  if (error || !Array.isArray(data)) return new Set();
+  return new Set(data.map((r) => r.storage_path).filter(Boolean));
 }
 
 async function listActiveByManager(managerId) {
@@ -156,6 +179,7 @@ module.exports = {
   createFile,
   listActiveByManager,
   listAllActive,
+  listAllPathsByManager,
   countActiveByManager,
   findById,
   deleteFile
